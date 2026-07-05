@@ -27,6 +27,32 @@ starting, stores named configuration **profiles**, and keeps a searchable
   full captured HTTP exchanges — browsable later from History.
 - **Secrets encrypted at rest** with AES-256-GCM.
 
+## Screenshots
+
+**Login history** — every attempt, filterable by profile, protocol and status.
+
+![Login history](docs/screenshots/history.png)
+
+**Profiles** — named OIDC/SAML configurations.
+
+![Profiles](docs/screenshots/profiles.png)
+
+**Pre-login review** — inspect and edit every request parameter (including
+freshly generated `state` / `nonce` / PKCE) before the login starts.
+
+![OIDC review screen](docs/screenshots/review-oidc.png)
+
+**OIDC inspection** — validations, decoded ID-token claims and headers,
+userinfo, the raw token response, the exact parameters used, and the captured
+server-to-server HTTP exchanges.
+
+![OIDC inspection result](docs/screenshots/result-oidc.png)
+
+**SAML inspection** — signature/audience/time/`InResponseTo` validations, the
+decoded assertion and attributes, and the syntax-highlighted `SAMLResponse` XML.
+
+![SAML inspection result](docs/screenshots/result-saml.png)
+
 ## Quick start (local)
 
 ```sh
@@ -42,6 +68,69 @@ export $(grep -v '^#' .env | xargs) && go run ./cmd/loupe
 ```
 
 Open http://localhost:8080, create a profile, and start a login.
+
+## Run with Docker
+
+A prebuilt multi-arch image (`linux/amd64` and `linux/arm64`) is published to
+Docker Hub as [`default23/loupe`](https://hub.docker.com/r/default23/loupe).
+`latest` always tracks the `master` branch; released versions are tagged (e.g.
+`default23/loupe:v1.2.3`).
+
+Loupe needs a PostgreSQL database and a `MASTER_KEY`. To run it against an
+existing Postgres:
+
+```sh
+docker run --rm -p 8080:8080 \
+  -e POSTGRES_DSN="postgres://loupe:loupe@host.docker.internal:5432/loupe?sslmode=disable" \
+  -e MASTER_KEY="any-passphrase" \
+  -e BASE_URL="http://localhost:8080" \
+  default23/loupe:latest
+```
+
+Migrations run automatically on startup, so no manual DB setup is needed beyond
+an empty database.
+
+### docker-compose
+
+The following brings up Loupe together with its database. Save it as
+`compose.yaml` and run `docker compose up`:
+
+```yaml
+services:
+  loupe:
+    image: default23/loupe:latest
+    ports:
+      - "8080:8080"
+    environment:
+      LISTEN_ADDR: ":8080"
+      BASE_URL: "http://localhost:8080"
+      POSTGRES_DSN: "postgres://loupe:loupe@db:5432/loupe?sslmode=disable"
+      MASTER_KEY: "change-me"   # any non-empty passphrase; keep it stable
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: loupe
+      POSTGRES_PASSWORD: loupe
+      POSTGRES_DB: loupe
+    volumes:
+      - loupe_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loupe"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  loupe_pgdata:
+```
+
+To pin a specific release, replace `default23/loupe:latest` with a version tag.
+Keep `MASTER_KEY` stable across restarts — rotating it makes previously stored
+secrets undecryptable.
 
 ### Callback / ACS URLs
 
