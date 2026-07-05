@@ -1,0 +1,58 @@
+name: Publish Docker image
+
+# Builds the multi-arch image and pushes it to Docker Hub.
+#   - push to master        -> default23/loupe:latest
+#   - push a git tag (v*)   -> default23/loupe:<tag>  AND  default23/loupe:latest
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+
+env:
+  IMAGE: default23/loupe
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # QEMU lets a single amd64 runner build the arm64 variant.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Derives the image tags. `latest` is always applied; on a git tag push
+      # the tag's name (e.g. v1.2.3) is added as well.
+      - name: Compute image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=ref,event=tag
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
