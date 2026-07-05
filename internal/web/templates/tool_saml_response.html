@@ -1,0 +1,80 @@
+{{define "content"}}
+<p class="eyebrow"><a href="/tools">Tools</a> · SAML Response</p>
+<h1 class="section-title">SAML Response decoder</h1>
+<p class="hint">Paste the Base64 <code>SAMLResponse</code> from an ACS POST. Add an IdP certificate to verify the signature.</p>
+
+<form class="tool-form" hx-post="/tools/saml-response/decode" hx-target="#readout-body" hx-swap="innerHTML"
+      hx-trigger="input changed delay:300ms, change delay:150ms">
+    <div class="tool-split">
+        <section class="pane specimen">
+            <div class="pane-head"><p class="eyebrow">Input</p></div>
+            <label for="response">SAMLResponse (Base64)</label>
+            <textarea id="response" name="response" class="slot mono" spellcheck="false"
+                      placeholder="PHNhbWxwOl…"></textarea>
+
+            <fieldset>
+                <legend>Verify signature <span class="muted">— optional</span></legend>
+                {{if .Profiles}}
+                <label for="profile">Use a profile's IdP certificate</label>
+                <select id="profile" name="profile">
+                    <option value="">— none —</option>
+                    {{range .Profiles}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                </select>
+                {{end}}
+                <label for="cert">IdP certificate (PEM)</label>
+                <textarea id="cert" name="cert" class="mono" rows="3" spellcheck="false"
+                          placeholder="-----BEGIN CERTIFICATE-----  — overrides the profile"></textarea>
+                <label for="audience">Expected audience (SP entity ID) <span class="muted">— optional</span></label>
+                <input id="audience" name="audience" type="text" autocomplete="off" spellcheck="false"
+                       placeholder="https://sp.example.com">
+            </fieldset>
+        </section>
+
+        <section class="pane readout">
+            <div class="pane-head">
+                <p class="eyebrow">Readout</p>
+                <span class="readout-status">decoded</span>
+            </div>
+            <div id="readout-body">
+                <p class="tool-hint">Paste a SAML Response to decode it.</p>
+            </div>
+        </section>
+    </div>
+</form>
+{{end}}
+
+{{define "saml_response_result"}}
+{{if .Error}}
+<div class="banner err"><span class="banner-tag">error</span>{{.Error}}</div>
+{{else if not .Decoded}}
+<p class="tool-hint">Paste a SAML Response to decode it.</p>
+{{else}}
+<h3>Assertion</h3>
+<table class="kvtable">
+    <tr><td>NameID</td><td><code>{{.NameID}}</code></td></tr>
+    <tr><td>SessionIndex</td><td><code>{{.SessionIndex}}</code></td></tr>
+    <tr><td>AuthnInstant</td><td>{{.AuthnInstant}}</td></tr>
+    <tr><td>InResponseTo</td><td><code>{{.InResponseTo}}</code></td></tr>
+</table>
+{{if .Attributes}}
+<h3>Attributes</h3>
+<pre class="code" data-lang="json">{{prettyJSON .Attributes}}</pre>
+{{end}}
+{{if .Validations}}
+<h3>Validations</h3>
+<ul class="checks-list">
+    {{range .Validations}}
+    <li class="{{.State}}">
+        <span class="mark">{{if eq .State "ok"}}✓{{else if eq .State "warn"}}–{{else}}✗{{end}}</span>
+        <strong>{{.Name}}</strong>
+        {{if .Detail}}<span class="muted">— {{.Detail}}</span>{{end}}
+    </li>
+    {{end}}
+</ul>
+{{end}}
+{{if .XML}}
+<h3>Decoded XML</h3>
+<pre class="code wrap" data-lang="xml">{{.XML}}</pre>
+{{end}}
+{{end}}
+{{end}}

@@ -34,6 +34,13 @@ var pages = []string{
 	"result.html",
 	"history_list.html",
 	"profiles_import.html",
+	"tools_index.html",
+	"tool_jwt.html",
+	"tool_saml_response.html",
+	"tool_saml_authnrequest.html",
+	"tool_encode.html",
+	"tool_cert.html",
+	"tool_jwks.html",
 }
 
 // Server holds dependencies shared across handlers.
@@ -94,6 +101,22 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /history", s.handleHistoryList)
 	mux.HandleFunc("GET /history/{id}", s.handleHistoryDetail)
 
+	// Tools — standalone protocol inspectors (no login flow).
+	mux.HandleFunc("GET /tools", s.handleToolsIndex)
+	mux.HandleFunc("GET /tools/jwt", s.handleJWTPage)
+	mux.HandleFunc("POST /tools/jwt/decode", s.handleJWTDecode)
+	mux.HandleFunc("GET /tools/saml-response", s.handleSAMLResponsePage)
+	mux.HandleFunc("POST /tools/saml-response/decode", s.handleSAMLResponseDecode)
+	mux.HandleFunc("GET /tools/saml-authnrequest", s.handleAuthnRequestPage)
+	mux.HandleFunc("POST /tools/saml-authnrequest/decode", s.handleAuthnRequestDecode)
+	mux.HandleFunc("GET /tools/encode", s.handleEncodePage)
+	mux.HandleFunc("POST /tools/encode/apply", s.handleEncodeApply)
+	mux.HandleFunc("GET /tools/cert", s.handleCertPage)
+	mux.HandleFunc("POST /tools/cert/inspect", s.handleCertInspect)
+	mux.HandleFunc("POST /tools/cert/generate", s.handleCertGenerate)
+	mux.HandleFunc("GET /tools/jwks", s.handleJWKSPage)
+	mux.HandleFunc("POST /tools/jwks/view", s.handleJWKSView)
+
 	return s.withLogging(mux)
 }
 
@@ -133,6 +156,21 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, page string, dat
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := t.ExecuteTemplate(w, "base.html", data); err != nil {
 		s.log.Error("render failed", "page", page, "err", err)
+	}
+}
+
+// renderPartial executes a named template block (defined inside a page's file)
+// without the base.html shell, for HTMX fragment swaps.
+func (s *Server) renderPartial(w http.ResponseWriter, page, block string, data any) {
+	t, ok := s.pages[page]
+	if !ok {
+		s.log.Error("unknown template", "page", page)
+		http.Error(w, "template error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := t.ExecuteTemplate(w, block, data); err != nil {
+		s.log.Error("render partial failed", "page", page, "block", block, "err", err)
 	}
 }
 

@@ -86,4 +86,12 @@
   } else {
     apply();
   }
+
+  // Re-highlight content swapped in by HTMX (e.g. the Tools live readout).
+  // apply() reads textContent, so re-running over already-highlighted nodes is
+  // idempotent; we only need it to reach the newly inserted <pre> elements.
+  document.addEventListener("htmx:afterSwap", apply);
+
+  // Expose for manual re-runs if ever needed.
+  window.Highlight = { apply: apply };
 })();

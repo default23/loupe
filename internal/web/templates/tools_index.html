@@ -1,0 +1,65 @@
+{{define "content"}}
+<section class="hero">
+    <div class="reticle">
+        <p class="eyebrow">Tools</p>
+        <h1 class="hero-title">Decode the artifacts <span class="glyph">by hand.</span></h1>
+        <p class="lede">Paste a token, a SAML message, or a certificate and see exactly
+            what's inside — signature, claims, conditions, keys. No profile, no round-trip
+            to an identity provider.</p>
+    </div>
+</section>
+
+<div class="tool-family">
+    <p class="eyebrow">Tokens</p>
+    <div class="tool-cards" style="--accent: var(--lens)">
+        <a class="tool-card" href="/tools/jwt">
+            <span class="name">JWT decoder <span class="go">→</span></span>
+            <span class="desc">Decode header and claims, read the timestamps, and verify the
+                signature against a JWKS or shared secret.</span>
+        </a>
+        <a class="tool-card" href="/tools/jwks">
+            <span class="name">JWKS viewer <span class="go">→</span></span>
+            <span class="desc">List the keys in a JWK Set — kid, type, algorithm, use, and
+                RFC 7638 thumbprint — from JSON or a URL.</span>
+        </a>
+    </div>
+</div>
+
+<div class="tool-family">
+    <p class="eyebrow">SAML</p>
+    <div class="tool-cards" style="--accent: var(--saml)">
+        <a class="tool-card" href="/tools/saml-response">
+            <span class="name">Response decoder <span class="go">→</span></span>
+            <span class="desc">Base64 → XML, with NameID, attributes, and signature,
+                audience, and time-condition checks.</span>
+        </a>
+        <a class="tool-card" href="/tools/saml-authnrequest">
+            <span class="name">AuthnRequest decoder <span class="go">→</span></span>
+            <span class="desc">Inflate a Redirect-binding request or decode a POST one, and
+                read its issuer, ACS, and requested context.</span>
+        </a>
+    </div>
+</div>
+
+<div class="tool-family">
+    <p class="eyebrow">Encoding</p>
+    <div class="tool-cards" style="--accent: var(--warn)">
+        <a class="tool-card" href="/tools/encode">
+            <span class="name">Encode / Decode <span class="go">→</span></span>
+            <span class="desc">Base64, Base64URL, URL escaping, DEFLATE, and JSON/XML
+                formatting — the plumbing behind every protocol.</span>
+        </a>
+    </div>
+</div>
+
+<div class="tool-family">
+    <p class="eyebrow">Keys &amp; certificates</p>
+    <div class="tool-cards" style="--accent: var(--ok)">
+        <a class="tool-card" href="/tools/cert">
+            <span class="name">Certificates &amp; keys <span class="go">→</span></span>
+            <span class="desc">Inspect an X.509 certificate — subject, validity,
+                fingerprints — or generate a fresh SP keypair.</span>
+        </a>
+    </div>
+</div>
+{{end}}

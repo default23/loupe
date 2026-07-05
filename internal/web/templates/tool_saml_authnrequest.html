@@ -1,0 +1,54 @@
+{{define "content"}}
+<p class="eyebrow"><a href="/tools">Tools</a> · SAML AuthnRequest</p>
+<h1 class="section-title">SAML AuthnRequest decoder</h1>
+<p class="hint">Paste the <code>SAMLRequest</code> value from a redirect URL (DEFLATE-compressed) or a POST form (raw Base64). The binding is detected for you.</p>
+
+<form class="tool-form" hx-post="/tools/saml-authnrequest/decode" hx-target="#readout-body" hx-swap="innerHTML"
+      hx-trigger="input changed delay:300ms">
+    <div class="tool-split">
+        <section class="pane specimen">
+            <div class="pane-head"><p class="eyebrow">Input</p></div>
+            <label for="request">SAMLRequest</label>
+            <textarea id="request" name="request" class="slot mono" spellcheck="false"
+                      placeholder="fVLLTsMwEPyVyPfGiVMotZpIhQpRqUBEA…"></textarea>
+        </section>
+
+        <section class="pane readout">
+            <div class="pane-head">
+                <p class="eyebrow">Readout</p>
+                <span class="readout-status">decoded</span>
+            </div>
+            <div id="readout-body">
+                <p class="tool-hint">Paste a SAMLRequest to decode it.</p>
+            </div>
+        </section>
+    </div>
+</form>
+{{end}}
+
+{{define "authn_request_result"}}
+{{if .Error}}
+<div class="banner err"><span class="banner-tag">error</span>{{.Error}}</div>
+{{else if not .Info}}
+<p class="tool-hint">Paste a SAMLRequest to decode it.</p>
+{{else}}{{with .Info}}
+<div class="pane-head">
+    <span class="badge saml">{{.Binding}} binding</span>
+    {{if .Signed}}<span class="badge status-success">signed</span>{{else}}<span class="badge phase">unsigned</span>{{end}}
+</div>
+<table class="kvtable">
+    <tr><td>ID</td><td><code>{{.ID}}</code></td></tr>
+    <tr><td>Issuer</td><td><code>{{.Issuer}}</code></td></tr>
+    <tr><td>Destination</td><td><code>{{.Destination}}</code></td></tr>
+    {{if .ACSURL}}<tr><td>ACS URL</td><td><code>{{.ACSURL}}</code></td></tr>{{end}}
+    {{if .ProtocolBinding}}<tr><td>ProtocolBinding</td><td><code>{{.ProtocolBinding}}</code></td></tr>{{end}}
+    <tr><td>IssueInstant</td><td>{{.IssueInstant}}</td></tr>
+    {{if .ForceAuthn}}<tr><td>ForceAuthn</td><td>{{.ForceAuthn}}</td></tr>{{end}}
+    {{if .IsPassive}}<tr><td>IsPassive</td><td>{{.IsPassive}}</td></tr>{{end}}
+    {{if .NameIDFormat}}<tr><td>NameID format</td><td><code>{{.NameIDFormat}}</code></td></tr>{{end}}
+    {{if .RequestedAuthnContext}}<tr><td>Requested context</td><td>{{range .RequestedAuthnContext}}<code>{{.}}</code><br>{{end}}</td></tr>{{end}}
+</table>
+<h3>Decoded XML</h3>
+<pre class="code wrap" data-lang="xml">{{.XML}}</pre>
+{{end}}{{end}}
+{{end}}

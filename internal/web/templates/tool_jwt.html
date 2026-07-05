@@ -1,0 +1,74 @@
+{{define "content"}}
+<p class="eyebrow"><a href="/tools">Tools</a> · JWT decoder</p>
+<h1 class="section-title">JWT decoder</h1>
+<p class="hint">Decoding happens as you type. Nothing leaves this machine unless you point verification at a JWKS URL or a profile.</p>
+
+<form class="tool-form" hx-post="/tools/jwt/decode" hx-target="#readout-body" hx-swap="innerHTML"
+      hx-trigger="input changed delay:250ms, change delay:150ms">
+    <div class="tool-split">
+        <section class="pane specimen">
+            <div class="pane-head"><p class="eyebrow">Input</p></div>
+            <label for="token">JWT</label>
+            <textarea id="token" name="token" class="slot mono" spellcheck="false"
+                      placeholder="eyJhbGciOi…"></textarea>
+
+            <fieldset>
+                <legend>Verify signature <span class="muted">— optional</span></legend>
+                {{if .Profiles}}
+                <label for="profile">Use a profile's JWKS</label>
+                <select id="profile" name="profile">
+                    <option value="">— none —</option>
+                    {{range .Profiles}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                </select>
+                {{end}}
+                <label for="jwks">JWKS (JSON)</label>
+                <textarea id="jwks" name="jwks" class="mono" rows="3" spellcheck="false"
+                          placeholder='{"keys":[…]}  — overrides the profile'></textarea>
+                <label for="secret">HMAC secret <span class="muted">— for HS256/384/512</span></label>
+                <input id="secret" name="secret" type="text" autocomplete="off" spellcheck="false"
+                       placeholder="shared secret">
+            </fieldset>
+        </section>
+
+        <section class="pane readout">
+            <div class="pane-head">
+                <p class="eyebrow">Readout</p>
+                <span class="readout-status">decoded</span>
+            </div>
+            <div id="readout-body">
+                <p class="tool-hint">Paste a JWT to decode it.</p>
+            </div>
+        </section>
+    </div>
+</form>
+{{end}}
+
+{{define "jwt_result"}}
+{{if .Error}}
+<div class="banner err"><span class="banner-tag">error</span>{{.Error}}</div>
+{{else if not .Decoded}}
+<p class="tool-hint">Paste a JWT to decode it.</p>
+{{else}}
+<h3>Header</h3>
+<pre class="code" data-lang="json">{{prettyJSON .Header}}</pre>
+<h3>Payload</h3>
+<pre class="code" data-lang="json">{{prettyJSON .Claims}}</pre>
+{{if .Timestamps}}
+<h3>Timestamps</h3>
+<table class="kvtable">
+    {{range .Timestamps}}<tr><td>{{.K}}</td><td>{{.V}}</td></tr>{{end}}
+</table>
+{{end}}
+<h3>Verification</h3>
+{{if .VerifyNote}}<p class="hint">{{.VerifyNote}}</p>{{end}}
+<ul class="checks-list">
+    {{range .Validations}}
+    <li class="{{.State}}">
+        <span class="mark">{{if eq .State "ok"}}✓{{else if eq .State "warn"}}–{{else}}✗{{end}}</span>
+        <strong>{{.Name}}</strong>
+        {{if .Detail}}<span class="muted">— {{.Detail}}</span>{{end}}
+    </li>
+    {{end}}
+</ul>
+{{end}}
+{{end}}

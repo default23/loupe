@@ -477,7 +477,111 @@ pre.code .jwt-p   { color: #8fdca6; }
 pre.code .jwt-s   { color: var(--faint); }
 pre.code .jwt-dot { color: var(--muted); }
 
+/* ============================================================
+   Tools — standalone protocol inspectors.
+   The workbench: a rack of instruments (hub) and, per tool, a
+   two-pane bench — specimen slot on the left, live lens readout
+   on the right.
+   ============================================================ */
+
+/* ---- Hub: instrument rack ---- */
+.tool-family { margin-bottom: 2rem; }
+.tool-family > .eyebrow { margin-bottom: 0.85rem; }
+.tool-cards {
+    --accent: var(--lens);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 0.8rem;
+}
+.tool-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 1.05rem 1.15rem;
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg-2);
+    color: var(--text);
+    transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+}
+.tool-card:hover {
+    border-color: var(--line-2);
+    border-left-color: var(--accent);
+    background: var(--panel-2);
+    transform: translateY(-1px);
+}
+.tool-card .name {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 0.98rem;
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+}
+.tool-card .name .go { color: var(--faint); transition: color 0.12s ease, transform 0.12s ease; }
+.tool-card:hover .name .go { color: var(--accent); transform: translateX(2px); }
+.tool-card .desc { color: var(--muted); font-size: 0.84rem; font-family: var(--sans); line-height: 1.45; }
+
+/* ---- Bench: two-pane inspector ---- */
+.tool-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1.2rem;
+    align-items: start;
+    margin-top: 1.4rem;
+}
+.pane {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.2rem 1.3rem;
+    min-width: 0;
+}
+.pane.readout { border-left: 2px solid var(--lens-dim); }
+.pane-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+    margin-bottom: 0.9rem;
+}
+.pane-head .eyebrow { margin: 0; }
+.pane-head .sub { font-family: var(--mono); font-size: 0.72rem; color: var(--faint); }
+
+/* The lens readout: a status dot that pulses while a decode is in flight. */
+.readout-status {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--faint);
+}
+.readout-status::before {
+    content: ""; width: 0.5rem; height: 0.5rem; border-radius: 50%;
+    background: var(--line-2); transition: background 0.15s ease;
+}
+.tool-form.htmx-request .readout-status::before { background: var(--lens); animation: pulse 0.9s ease-in-out infinite; }
+.tool-form.htmx-request .readout-status { color: var(--lens); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+.tool-hint { color: var(--faint); font-size: 0.86rem; font-family: var(--mono); padding: 0.6rem 0; }
+.readout h3:first-child, .readout .kvtable:first-child { margin-top: 0; }
+.readout .banner { margin-bottom: 0.9rem; }
+
+/* A textarea that behaves like an instrument's specimen slot. */
+textarea.slot {
+    min-height: 210px;
+    resize: vertical;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    white-space: pre;
+    overflow-wrap: normal;
+}
+.tool-form label:first-child { margin-top: 0; }
+
+/* Warn state for validations (paired with the existing ok/fail). */
+ul.checks-list li.warn .mark { color: var(--warn); }
+ul.checks-list li.warn strong { color: #f0cd8a; }
+
 /* ---- Responsive ---- */
+@media (max-width: 820px) {
+    .tool-split { grid-template-columns: 1fr; }
+    .pane.readout { border-left: 1px solid var(--line); }
+}
 @media (max-width: 640px) {
     .brand-sub { display: none; }
     .rail { padding: 0.75rem 1rem; }

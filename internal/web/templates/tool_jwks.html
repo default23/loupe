@@ -1,0 +1,54 @@
+{{define "content"}}
+<p class="eyebrow"><a href="/tools">Tools</a> · JWKS viewer</p>
+<h1 class="section-title">JWKS viewer</h1>
+<p class="hint">Paste a JWK Set as JSON, or give a <code>jwks_uri</code> and it will be fetched.</p>
+
+<form class="tool-form" hx-post="/tools/jwks/view" hx-target="#readout-body" hx-swap="innerHTML"
+      hx-trigger="input changed delay:350ms">
+    <div class="tool-split">
+        <section class="pane specimen">
+            <div class="pane-head"><p class="eyebrow">Input</p></div>
+            <label for="jwks">JWKS JSON or URL</label>
+            <textarea id="jwks" name="jwks" class="slot mono" spellcheck="false"
+                      placeholder='{"keys":[…]}   or   https://idp.example.com/jwks'></textarea>
+        </section>
+
+        <section class="pane readout">
+            <div class="pane-head">
+                <p class="eyebrow">Keys</p>
+                <span class="readout-status">parsed</span>
+            </div>
+            <div id="readout-body">
+                <p class="tool-hint">Paste a JWK Set to list its keys.</p>
+            </div>
+        </section>
+    </div>
+</form>
+{{end}}
+
+{{define "jwks_result"}}
+{{if .Error}}
+<div class="banner err"><span class="banner-tag">error</span>{{.Error}}</div>
+{{else if not .Keys}}
+<p class="tool-hint">Paste a JWK Set to list its keys.</p>
+{{else}}
+<table class="grid">
+    <thead><tr><th>kid</th><th>kty</th><th>alg</th><th>use</th><th>bits</th></tr></thead>
+    <tbody>
+        {{range .Keys}}
+        <tr>
+            <td><code>{{if .Kid}}{{.Kid}}{{else}}—{{end}}</code></td>
+            <td>{{.Kty}}</td>
+            <td>{{if .Alg}}{{.Alg}}{{else}}—{{end}}</td>
+            <td>{{if .Use}}{{.Use}}{{else}}—{{end}}</td>
+            <td>{{if .Bits}}{{.Bits}}{{else}}—{{end}}</td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+<h3>Thumbprints <span class="muted">(RFC 7638, SHA-256)</span></h3>
+<table class="kvtable">
+    {{range .Keys}}<tr><td><code>{{if .Kid}}{{.Kid}}{{else}}(no kid){{end}}</code></td><td><code>{{.Thumbprint}}</code></td></tr>{{end}}
+</table>
+{{end}}
+{{end}}

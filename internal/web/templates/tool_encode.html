@@ -1,0 +1,41 @@
+{{define "content"}}
+<p class="eyebrow"><a href="/tools">Tools</a> · Encode / Decode</p>
+<h1 class="section-title">Encode / Decode</h1>
+<p class="hint">The plumbing behind every protocol — Base64, URL escaping, DEFLATE, and JSON/XML formatting.</p>
+
+<form class="tool-form" hx-post="/tools/encode/apply" hx-target="#readout-body" hx-swap="innerHTML"
+      hx-trigger="input changed delay:250ms, change delay:50ms">
+    <div class="tool-split">
+        <section class="pane specimen">
+            <div class="pane-head"><p class="eyebrow">Input</p></div>
+            <label for="op">Operation</label>
+            <select id="op" name="op">
+                {{range .Transforms}}<option value="{{.Key}}">{{.Group}} · {{.Label}}</option>{{end}}
+            </select>
+            <label for="input">Text</label>
+            <textarea id="input" name="input" class="slot mono" spellcheck="false"
+                      placeholder="Paste text to transform…"></textarea>
+        </section>
+
+        <section class="pane readout">
+            <div class="pane-head">
+                <p class="eyebrow">Output</p>
+                <span class="readout-status">applied</span>
+            </div>
+            <div id="readout-body">
+                <p class="tool-hint">Choose an operation and enter some text.</p>
+            </div>
+        </section>
+    </div>
+</form>
+{{end}}
+
+{{define "encode_result"}}
+{{if .Error}}
+<div class="banner err"><span class="banner-tag">error</span>{{.Error}}</div>
+{{else if not .Output}}
+<p class="tool-hint">Choose an operation and enter some text.</p>
+{{else}}
+<pre class="code wrap" data-lang="auto">{{.Output}}</pre>
+{{end}}
+{{end}}
