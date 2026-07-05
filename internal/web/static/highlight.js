@@ -53,6 +53,16 @@
     return code;
   }
 
+  function hlJWT(code) {
+    var parts = code.trim().split(".");
+    var cls = ["jwt-h", "jwt-p", "jwt-s"];
+    return parts
+      .map(function (p, i) {
+        return '<span class="' + (cls[i] || "jwt-s") + '">' + esc(p) + "</span>";
+      })
+      .join('<span class="jwt-dot">.</span>');
+  }
+
   function apply() {
     var nodes = document.querySelectorAll("pre[data-lang]");
     for (var i = 0; i < nodes.length; i++) {
@@ -66,6 +76,7 @@
       }
       if (lang === "json") el.innerHTML = hlJSON(txt);
       else if (lang === "xml") el.innerHTML = hlXML(txt);
+      else if (lang === "jwt") el.innerHTML = hlJWT(txt);
       el.classList.add("hl");
     }
   }

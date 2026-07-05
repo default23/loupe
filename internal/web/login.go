@@ -259,6 +259,12 @@ func buildOIDCArtifacts(tr *oidc.TokenResponse, header, claims, userinfo map[str
 		"scope":           tr.Scope,
 		"token_response":  tr.Raw,
 	}
+	// Access tokens are often JWTs (Keycloak, Azure AD, etc.); decode when so,
+	// so the result page can show header/claims alongside the id token.
+	if atHeader, atClaims, err := oidc.DecodeJWT(tr.AccessToken); err == nil {
+		a["access_token_header"] = atHeader
+		a["access_token_claims"] = atClaims
+	}
 	if userinfo != nil {
 		a["userinfo"] = userinfo
 	}

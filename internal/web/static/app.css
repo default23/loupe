@@ -414,6 +414,52 @@ h2 { font-size: 1.15rem; }
 h3 { font-size: 0.98rem; margin: 0.9rem 0 0.35rem; color: var(--muted); }
 h4 { font-size: 0.85rem; }
 
+/* ---- Token panels (OIDC result accordion) ---- */
+.token-stack { margin-top: 0.9rem; display: grid; gap: 0.55rem; }
+.token-panel {
+    --kind: var(--line-2);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--kind);
+    border-radius: 6px;
+    background: var(--bg-2);
+}
+.token-panel[data-kind="id"]       { --kind: var(--lens-dim); }
+.token-panel[data-kind="access"]   { --kind: var(--oidc); }
+.token-panel[data-kind="refresh"]  { --kind: var(--warn); }
+.token-panel[data-kind="userinfo"] { --kind: var(--saml); }
+
+.token-panel > summary {
+    cursor: pointer; list-style: none;
+    display: flex; align-items: center; gap: 0.55rem;
+    padding: 0.72rem 0.9rem;
+    font-family: var(--mono);
+    border-radius: 5px;
+}
+.token-panel > summary::-webkit-details-marker { display: none; }
+.token-panel > summary::before { content: "▸"; color: var(--faint); font-size: 0.78rem; flex: none; }
+.token-panel[open] > summary::before { content: "▾"; color: var(--kind); }
+.token-panel > summary:hover { background: var(--panel-2); }
+.token-panel[open] > summary { border-bottom: 1px solid var(--line); border-radius: 5px 5px 0 0; }
+
+.tok-name { font-weight: 600; font-size: 0.9rem; letter-spacing: 0.01em; color: var(--text); }
+.tok-flag {
+    font-family: var(--mono); font-size: 0.62rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 0.12rem 0.42rem; border-radius: 4px;
+    border: 1px solid var(--line-2); color: var(--faint); white-space: nowrap;
+}
+.tok-flag.jwt { color: var(--kind); border-color: var(--kind); }
+
+.token-body { padding: 0.55rem 0.9rem 0.95rem; }
+.token-body h4 {
+    margin: 0.95rem 0 0.3rem; font-family: var(--mono); font-size: 0.7rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.09em; color: var(--faint);
+}
+.token-body h4:first-child { margin-top: 0.35rem; }
+.token-body > .kvtable { margin-top: 0.15rem; }
+.token-body > .kvtable td:first-child { width: 120px; }
+.token-body .muted { font-size: 0.86rem; }
+
 /* ---- Syntax highlighting (JSON / XML) ---- */
 pre.code .json-key   { color: #57d0d0; }
 pre.code .json-str   { color: #8fdca6; }
@@ -425,6 +471,11 @@ pre.code .xml-name    { color: #57d0d0; }
 pre.code .xml-attr    { color: var(--oidc); }
 pre.code .xml-attrval { color: #8fdca6; }
 pre.code .xml-comment { color: var(--faint); font-style: italic; }
+/* JWT anatomy: header . payload . signature */
+pre.code .jwt-h   { color: #57d0d0; }
+pre.code .jwt-p   { color: #8fdca6; }
+pre.code .jwt-s   { color: var(--faint); }
+pre.code .jwt-dot { color: var(--muted); }
 
 /* ---- Responsive ---- */
 @media (max-width: 640px) {
