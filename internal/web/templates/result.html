@@ -41,28 +41,102 @@
 {{if eq .Protocol "oidc"}}
 <section class="card">
     <h2>Tokens &amp; claims</h2>
-    {{with index $art "id_token_claims"}}
-    <h3>ID token claims</h3>
-    <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
-    {{end}}
-    {{with index $art "id_token_header"}}
-    <h3>ID token header</h3>
-    <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
-    {{end}}
-    {{with index $art "userinfo"}}
-    <h3>Userinfo</h3>
-    <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
-    {{end}}
-    {{with index $art "token_response"}}
-    <h3>Raw token response</h3>
-    <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
-    {{end}}
-    {{with index $art "id_token"}}
-    <details>
-        <summary>id_token (raw JWT)</summary>
-        <pre class="code wrap">{{asString .}}</pre>
-    </details>
-    {{end}}
+    <p class="hint">Each artifact the token endpoint returned, decoded. Sections are collapsed — open one to inspect it.</p>
+    <div class="token-stack">
+
+        {{/* ---- ID token ---- */}}
+        {{with index $art "id_token"}}
+        <details class="token-panel" data-kind="id">
+            <summary>
+                <span class="tok-name">ID token</span>
+                {{with index $art "id_token_header"}}{{with index . "alg"}}<span class="badge phase">{{.}}</span>{{end}}{{end}}
+                <span class="tok-flag jwt">JWT</span>
+            </summary>
+            <div class="token-body">
+                {{with index $art "id_token_header"}}
+                <h4>Header</h4>
+                <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
+                {{end}}
+                {{with index $art "id_token_claims"}}
+                <h4>Payload</h4>
+                <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
+                {{end}}
+                <h4>Encoded JWT</h4>
+                <pre class="code wrap" data-lang="jwt">{{asString .}}</pre>
+            </div>
+        </details>
+        {{end}}
+
+        {{/* ---- Access token ---- */}}
+        {{$atHeader := index $art "access_token_header"}}
+        {{with index $art "access_token"}}
+        <details class="token-panel" data-kind="access">
+            <summary>
+                <span class="tok-name">Access token</span>
+                {{with index $art "token_type"}}<span class="badge phase">{{.}}</span>{{end}}
+                {{if $atHeader}}<span class="tok-flag jwt">JWT</span>{{else}}<span class="tok-flag">opaque</span>{{end}}
+            </summary>
+            <div class="token-body">
+                <table class="kvtable">
+                    <tr><td>Token type</td><td><code>{{asString (index $art "token_type")}}</code></td></tr>
+                    {{with index $art "expires_in"}}<tr><td>Expires in</td><td>{{.}} s</td></tr>{{end}}
+                    {{with index $art "scope"}}<tr><td>Scope</td><td><code>{{.}}</code></td></tr>{{end}}
+                </table>
+                {{with $atHeader}}
+                <h4>Header</h4>
+                <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
+                {{end}}
+                {{with index $art "access_token_claims"}}
+                <h4>Payload</h4>
+                <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
+                {{end}}
+                <h4>Raw token</h4>
+                <pre class="code wrap" data-lang="{{if $atHeader}}jwt{{end}}">{{asString .}}</pre>
+            </div>
+        </details>
+        {{end}}
+
+        {{/* ---- Refresh token ---- */}}
+        {{with index $art "refresh_token"}}
+        <details class="token-panel" data-kind="refresh">
+            <summary>
+                <span class="tok-name">Refresh token</span>
+                <span class="tok-flag">opaque</span>
+            </summary>
+            <div class="token-body">
+                <h4>Raw token</h4>
+                <pre class="code wrap">{{asString .}}</pre>
+            </div>
+        </details>
+        {{end}}
+
+        {{/* ---- Userinfo ---- */}}
+        {{with index $art "userinfo"}}
+        <details class="token-panel" data-kind="userinfo">
+            <summary>
+                <span class="tok-name">Userinfo</span>
+            </summary>
+            <div class="token-body">
+                <h4>Claims</h4>
+                <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
+            </div>
+        </details>
+        {{end}}
+
+        {{/* ---- Raw token response ---- */}}
+        {{with index $art "token_response"}}
+        <details class="token-panel" data-kind="raw">
+            <summary>
+                <span class="tok-name">Raw token response</span>
+                <span class="tok-flag">json</span>
+            </summary>
+            <div class="token-body">
+                <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
+            </div>
+        </details>
+        {{end}}
+
+    </div>
 </section>
 {{else if eq .Protocol "saml"}}
 <section class="card">
