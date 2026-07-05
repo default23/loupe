@@ -1,0 +1,64 @@
+{{define "content"}}
+<section class="hero">
+    <div class="reticle">
+        <p class="eyebrow">OIDC · SAML 2.0 · relying party</p>
+        <h1 class="hero-title">A forensic lens on single sign-on.</h1>
+        <p class="lede">
+            Point Loupe at an identity provider, run a login, and read exactly what
+            comes back — every claim, assertion, and signature, byte for byte.
+            Nothing is hidden; nothing is guessed.
+        </p>
+        <div class="hero-actions">
+            <a class="btn primary" href="/profiles/new?protocol=oidc">New OIDC profile</a>
+            <a class="btn ghost" href="/profiles/new?protocol=saml">New SAML profile</a>
+            {{if .Profiles}}<a class="btn ghost" href="/history">View history</a>{{end}}
+        </div>
+    </div>
+</section>
+
+{{if not .HasKey}}
+<div class="banner warn">
+    <span class="banner-tag">no key</span>
+    Set <code>MASTER_KEY</code> to store secrets (client secrets, SP keys,
+    secret headers). Profiles without secrets still work.
+</div>
+{{end}}
+
+<section class="panel">
+    <div class="panel-head">
+        <h2 class="section-title">Launch a login</h2>
+        <a class="link-more" href="/profiles">Manage profiles →</a>
+    </div>
+    {{if .Profiles}}
+    <ul class="launch">
+        {{range .Profiles}}
+        <li>
+            <a class="launch-row" href="/login/{{.ID}}">
+                <span class="badge {{.Protocol}}">{{.Protocol}}</span>
+                <span class="launch-name">{{.Name}}</span>
+                <span class="launch-go">Start login →</span>
+            </a>
+        </li>
+        {{end}}
+    </ul>
+    {{else}}
+    <div class="empty">
+        <p>No profiles yet. Add one to point Loupe at an identity provider.</p>
+        <div class="hero-actions">
+            <a class="btn primary" href="/profiles/new?protocol=oidc">New OIDC profile</a>
+            <a class="btn ghost" href="/profiles/new?protocol=saml">New SAML profile</a>
+        </div>
+    </div>
+    {{end}}
+</section>
+
+<section class="panel">
+    <h2 class="section-title">Endpoints to register at your IdP</h2>
+    <p class="hint">Derived from <code>BASE_URL</code>. These must match what the provider has on file.</p>
+    <dl class="endpoints">
+        <div><dt>OIDC redirect URI</dt><dd><code>{{.RedirectURI}}</code></dd></div>
+        <div><dt>SAML ACS URL</dt><dd><code>{{.ACSURL}}</code></dd></div>
+        <div><dt>SAML SP metadata</dt><dd><code>{{.ExternalBaseURL}}/profiles/&lt;id&gt;/saml/metadata</code></dd></div>
+    </dl>
+</section>
+{{end}}

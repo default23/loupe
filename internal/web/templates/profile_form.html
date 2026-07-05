@@ -1,0 +1,182 @@
+{{define "content"}}
+<form method="post" action="{{if .IsNew}}/profiles/new{{else}}/profiles/{{.Profile.ID}}{{end}}" class="card">
+    <h1>{{.Title}}</h1>
+
+    {{if .Error}}<div class="banner err">{{.Error}}</div>{{end}}
+    {{if .Notice}}<div class="banner ok">{{.Notice}}</div>{{end}}
+
+    <input type="hidden" name="protocol" value="{{.Profile.Protocol}}">
+
+    <label>Profile name
+        <input name="name" value="{{.Profile.Name}}" required autofocus>
+    </label>
+
+    {{if eq .Profile.Protocol "oidc"}}
+    {{template "oidc_fields" .}}
+    {{else}}
+    {{template "saml_fields" .}}
+    {{end}}
+
+    {{template "headers_fields" .}}
+
+    <div class="form-actions">
+        <button class="btn" name="action" value="save" type="submit">Save</button>
+        <a class="btn secondary" href="/profiles">Cancel</a>
+        {{if not .IsNew}}
+        <a class="btn secondary" href="/login/{{.Profile.ID}}">Start login</a>
+        <a class="btn secondary" href="/profiles/{{.Profile.ID}}/export">Export</a>
+        {{end}}
+    </div>
+</form>
+
+{{if not .IsNew}}
+<form method="post" action="/profiles/{{.Profile.ID}}/delete" class="card danger"
+      onsubmit="return confirm('Delete this profile?');">
+    <button class="btn danger" type="submit">Delete profile</button>
+</form>
+{{end}}
+{{end}}
+
+
+{{define "oidc_fields"}}
+<fieldset>
+    <legend>Discovery</legend>
+    <label>Issuer or discovery URL
+        <input name="oidc_discovery_url" value="{{.Profile.OIDC.DiscoveryURL}}"
+               placeholder="https://idp.example.com or .../.well-known/openid-configuration">
+    </label>
+    <button class="btn secondary small" name="action" value="import" type="submit">Import from discovery</button>
+    <p class="hint">Import fills the endpoints below. Custom headers are not applied to import requests.</p>
+</fieldset>
+
+<fieldset>
+    <legend>Endpoints</legend>
+    <label>Issuer <input name="oidc_issuer" value="{{.Profile.OIDC.Issuer}}"></label>
+    <label>Authorization endpoint <input name="oidc_authorization_endpoint" value="{{.Profile.OIDC.AuthorizationEndpoint}}"></label>
+    <label>Token endpoint <input name="oidc_token_endpoint" value="{{.Profile.OIDC.TokenEndpoint}}"></label>
+    <label>Userinfo endpoint <input name="oidc_userinfo_endpoint" value="{{.Profile.OIDC.UserinfoEndpoint}}"></label>
+    <label>JWKS URI <input name="oidc_jwks_uri" value="{{.Profile.OIDC.JWKSURI}}"></label>
+</fieldset>
+
+<fieldset>
+    <legend>Client</legend>
+    <label>Client ID <input name="oidc_client_id" value="{{.Profile.OIDC.ClientID}}"></label>
+    <label>Client secret
+        <input type="password" name="oidc_client_secret" value="{{.Profile.Secrets.OIDCClientSecret}}"
+               autocomplete="new-password">
+    </label>
+    <label>Scopes (space separated)
+        <input name="oidc_scopes" value="{{join .Profile.OIDC.Scopes " "}}">
+    </label>
+    <div class="cols">
+        <label>Response type <input name="oidc_response_type" value="{{.Profile.OIDC.ResponseType}}"></label>
+        <label>PKCE method
+            <select name="oidc_pkce_method">
+                {{$m := .Profile.OIDC.PKCEMethod}}
+                <option value="S256" {{if eq $m "S256"}}selected{{end}}>S256</option>
+                <option value="plain" {{if eq $m "plain"}}selected{{end}}>plain</option>
+                <option value="none" {{if eq $m "none"}}selected{{end}}>none</option>
+            </select>
+        </label>
+        <label>Token endpoint auth
+            <select name="oidc_token_auth_method">
+                {{$a := .Profile.OIDC.TokenEndpointAuthMethod}}
+                <option value="client_secret_basic" {{if eq $a "client_secret_basic"}}selected{{end}}>client_secret_basic</option>
+                <option value="client_secret_post" {{if eq $a "client_secret_post"}}selected{{end}}>client_secret_post</option>
+                <option value="none" {{if eq $a "none"}}selected{{end}}>none</option>
+            </select>
+        </label>
+    </div>
+    <div class="cols">
+        <label>prompt <input name="oidc_prompt" value="{{.Profile.OIDC.Prompt}}" placeholder="login | consent | none"></label>
+        <label>acr_values <input name="oidc_acr_values" value="{{.Profile.OIDC.ACRValues}}"></label>
+    </div>
+</fieldset>
+
+<fieldset>
+    <legend>Extra authorization parameters</legend>
+    <p class="hint">Added to the authorization request query. Editable again before each login.</p>
+    {{range .KVRows}}
+    <div class="cols kvrow">
+        <input name="kv[{{.I}}].key" value="{{.KV.Key}}" placeholder="param">
+        <input name="kv[{{.I}}].value" value="{{.KV.Value}}" placeholder="value">
+    </div>
+    {{end}}
+</fieldset>
+{{end}}
+
+
+{{define "saml_fields"}}
+<fieldset>
+    <legend>IdP metadata import</legend>
+    <label>Metadata URL
+        <input name="saml_metadata_url" value="" placeholder="https://idp.example.com/metadata">
+    </label>
+    <label>…or paste metadata XML
+        <textarea name="saml_metadata_xml" rows="3" placeholder="<EntityDescriptor …>"></textarea>
+    </label>
+    <button class="btn secondary small" name="action" value="import" type="submit">Import metadata</button>
+</fieldset>
+
+<fieldset>
+    <legend>Identity Provider</legend>
+    <label>IdP entity ID <input name="saml_idp_entity_id" value="{{.Profile.SAML.IdPEntityID}}"></label>
+    <label>IdP SSO URL <input name="saml_idp_sso_url" value="{{.Profile.SAML.IdPSSOURL}}"></label>
+    <label>SSO binding
+        <select name="saml_idp_sso_binding">
+            {{$b := .Profile.SAML.IdPSSOBinding}}
+            <option value="redirect" {{if eq $b "redirect"}}selected{{end}}>HTTP-Redirect</option>
+            <option value="post" {{if eq $b "post"}}selected{{end}}>HTTP-POST</option>
+        </select>
+    </label>
+    <label>IdP SLO URL <input name="saml_idp_slo_url" value="{{.Profile.SAML.IdPSLOURL}}"></label>
+    <label>IdP signing certificate(s) (PEM)
+        <textarea name="saml_idp_certs" rows="6" class="mono">{{join .Profile.SAML.IdPCertsPEM "\n"}}</textarea>
+    </label>
+</fieldset>
+
+<fieldset>
+    <legend>Service Provider (this app)</legend>
+    <label>SP entity ID <input name="saml_sp_entity_id" value="{{.Profile.SAML.SPEntityID}}" placeholder="{{.ACSURL}}"></label>
+    <p class="hint">ACS URL: <code>{{.ACSURL}}</code>{{if .SPMetadataURL}} · <a href="{{.SPMetadataURL}}" target="_blank">SP metadata</a>{{end}}</p>
+    <div class="checks">
+        <label class="inline"><input type="checkbox" name="saml_sign_authn_request" {{if .Profile.SAML.SignAuthnRequest}}checked{{end}}> Sign AuthnRequest</label>
+        <label class="inline"><input type="checkbox" name="saml_want_assertions_signed" {{if .Profile.SAML.WantAssertionsSigned}}checked{{end}}> Want assertions signed</label>
+        <label class="inline"><input type="checkbox" name="saml_allow_assertion_encryption" {{if .Profile.SAML.AllowAssertionEncryption}}checked{{end}}> Support encrypted assertions</label>
+        <label class="inline"><input type="checkbox" name="saml_force_authn" {{if .Profile.SAML.ForceAuthn}}checked{{end}}> ForceAuthn</label>
+        <label class="inline"><input type="checkbox" name="saml_is_passive" {{if .Profile.SAML.IsPassive}}checked{{end}}> IsPassive</label>
+    </div>
+    <label>NameID format <input name="saml_nameid_format" value="{{.Profile.SAML.NameIDFormat}}"></label>
+    <label>Requested AuthnContext class refs (one per line)
+        <textarea name="saml_requested_authn_context" rows="2">{{join .Profile.SAML.RequestedAuthnContext "\n"}}</textarea>
+    </label>
+    <label>SP certificate (PEM)
+        <textarea name="saml_sp_cert" rows="5" class="mono" readonly>{{.Profile.SAML.SPCertPEM}}</textarea>
+    </label>
+    <input type="hidden" name="saml_sp_private_key" value="{{.Profile.Secrets.SPPrivateKeyPEM}}">
+    <button class="btn secondary small" name="action" value="gen_sp_cert" type="submit">Generate SP cert/key</button>
+    <p class="hint">Signing or encryption support requires an SP key; one is generated automatically on save if needed.</p>
+</fieldset>
+{{end}}
+
+
+{{define "headers_fields"}}
+<fieldset>
+    <legend>Custom request headers</legend>
+    <p class="hint">Injected into the app's server-to-server calls to the provider
+        (not browser redirects). Choose which phases each applies to.</p>
+    {{range .HeaderRows}}
+    <div class="hdrrow">
+        <input name="hdr[{{.I}}].name" value="{{.H.Name}}" placeholder="Header-Name">
+        <input name="hdr[{{.I}}].value" value="{{.H.Value}}" placeholder="value">
+        <label class="inline"><input type="checkbox" name="hdr[{{.I}}].secret" {{if .H.Secret}}checked{{end}}> secret</label>
+        <span class="phases">
+            {{$row := .}}
+            {{range $.AllPhases}}
+            <label class="inline tiny"><input type="checkbox" name="hdr[{{$row.I}}].applies" value="{{.}}" {{if contains $row.H.AppliesTo .}}checked{{end}}> {{.}}</label>
+            {{end}}
+        </span>
+    </div>
+    {{end}}
+</fieldset>
+{{end}}

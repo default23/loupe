@@ -1,0 +1,15 @@
+{{define "content"}}
+<form method="post" action="/profiles/import" class="card">
+    <h1>Import profile</h1>
+    {{if .Error}}<div class="banner err">{{.Error}}</div>{{end}}
+    <p class="hint">Paste a profile JSON (as produced by Export). Secrets are not
+        included in exports — you will be taken to the edit form to add them.</p>
+    <label>Profile JSON
+        <textarea name="json" rows="16" class="mono" required>{{.JSON}}</textarea>
+    </label>
+    <div class="form-actions">
+        <button class="btn" type="submit">Import</button>
+        <a class="btn secondary" href="/profiles">Cancel</a>
+    </div>
+</form>
+{{end}}

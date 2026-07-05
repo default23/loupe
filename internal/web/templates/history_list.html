@@ -1,0 +1,49 @@
+{{define "content"}}
+<section class="card">
+    <h1>Login history</h1>
+    <form method="get" class="filters">
+        <select name="profile_id">
+            <option value="">All profiles</option>
+            {{$sp := .SelProfile}}
+            {{range .Profiles}}
+            <option value="{{.ID}}" {{if eq (printf "%d" .ID) $sp}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+        </select>
+        <select name="protocol">
+            {{$pr := .SelProtocol}}
+            <option value="">All protocols</option>
+            <option value="oidc" {{if eq $pr "oidc"}}selected{{end}}>OIDC</option>
+            <option value="saml" {{if eq $pr "saml"}}selected{{end}}>SAML</option>
+        </select>
+        <select name="status">
+            {{$st := .SelStatus}}
+            <option value="">All statuses</option>
+            <option value="success" {{if eq $st "success"}}selected{{end}}>success</option>
+            <option value="failed" {{if eq $st "failed"}}selected{{end}}>failed</option>
+            <option value="started" {{if eq $st "started"}}selected{{end}}>started</option>
+        </select>
+        <button class="btn small" type="submit">Filter</button>
+        <a class="btn small secondary" href="/history">Reset</a>
+    </form>
+    {{if .Attempts}}
+    <table class="grid">
+        <thead>
+            <tr><th>When</th><th>Profile</th><th>Protocol</th><th>Status</th><th>Subject</th></tr>
+        </thead>
+        <tbody>
+            {{range .Attempts}}
+            <tr>
+                <td><a href="/history/{{.ID}}">{{.StartedAt.Format "2006-01-02 15:04:05"}}</a></td>
+                <td>{{.ProfileName}}</td>
+                <td><span class="badge {{.Protocol}}">{{.Protocol}}</span></td>
+                <td><span class="badge status-{{.Status}}">{{.Status}}</span></td>
+                <td class="muted"><code>{{.Summary.Subject}}</code></td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="muted">No login attempts yet. <a href="/profiles">Pick a profile</a> and start a login.</p>
+    {{end}}
+</section>
+{{end}}

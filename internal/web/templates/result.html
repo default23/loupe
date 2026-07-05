@@ -1,0 +1,130 @@
+{{define "content"}}
+{{if .Error}}
+<section class="card">
+    <h1>{{.Title}}</h1>
+    <div class="banner err">{{.Error}}</div>
+    <a class="btn secondary" href="/history">Back to history</a>
+</section>
+{{else}}
+{{with .Attempt}}
+<section class="verdict reticle">
+    <p class="eyebrow">Inspection result · {{.StartedAt.Format "2006-01-02 15:04:05"}}</p>
+    <div class="row spread">
+        <h1>{{.ProfileName}}</h1>
+        <span class="badge status-{{.Status}}">{{.Status}}</span>
+    </div>
+    <table class="kvtable">
+        <tr><td>Protocol</td><td><span class="badge {{.Protocol}}">{{.Protocol}}</span></td></tr>
+        {{if .Summary.Subject}}<tr><td>Subject</td><td><code>{{.Summary.Subject}}</code></td></tr>{{end}}
+        {{if .Summary.Issuer}}<tr><td>Issuer</td><td><code>{{.Summary.Issuer}}</code></td></tr>{{end}}
+        {{if .Summary.Email}}<tr><td>Email</td><td>{{.Summary.Email}}</td></tr>{{end}}
+    </table>
+    {{if .Error}}<div class="banner err" style="margin-top:1rem;margin-bottom:0">{{.Error}}</div>{{end}}
+</section>
+
+{{if .Details.Validations}}
+<section class="card">
+    <h2>Validations</h2>
+    <ul class="checks-list">
+        {{range .Details.Validations}}
+        <li class="{{if .OK}}ok{{else}}fail{{end}}">
+            <span class="mark">{{if .OK}}✓{{else}}✗{{end}}</span>
+            <strong>{{.Name}}</strong>
+            {{if .Detail}}<span class="muted">— {{.Detail}}</span>{{end}}
+        </li>
+        {{end}}
+    </ul>
+</section>
+{{end}}
+
+{{$art := .Details.Artifacts}}
+{{if eq .Protocol "oidc"}}
+<section class="card">
+    <h2>Tokens &amp; claims</h2>
+    {{with index $art "id_token_claims"}}
+    <h3>ID token claims</h3>
+    <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
+    {{end}}
+    {{with index $art "id_token_header"}}
+    <h3>ID token header</h3>
+    <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
+    {{end}}
+    {{with index $art "userinfo"}}
+    <h3>Userinfo</h3>
+    <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
+    {{end}}
+    {{with index $art "token_response"}}
+    <h3>Raw token response</h3>
+    <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
+    {{end}}
+    {{with index $art "id_token"}}
+    <details>
+        <summary>id_token (raw JWT)</summary>
+        <pre class="code wrap">{{asString .}}</pre>
+    </details>
+    {{end}}
+</section>
+{{else if eq .Protocol "saml"}}
+<section class="card">
+    <h2>Assertion</h2>
+    <table class="kvtable">
+        <tr><td>NameID</td><td><code>{{asString (index $art "name_id")}}</code></td></tr>
+        <tr><td>SessionIndex</td><td><code>{{asString (index $art "session_index")}}</code></td></tr>
+        <tr><td>AuthnInstant</td><td>{{asString (index $art "authn_instant")}}</td></tr>
+        <tr><td>InResponseTo</td><td><code>{{asString (index $art "in_response_to")}}</code></td></tr>
+    </table>
+    {{with index $art "attributes"}}
+    <h3>Attributes</h3>
+    <pre class="code" data-lang="json">{{prettyJSON .}}</pre>
+    {{end}}
+    {{with index $art "saml_response_xml"}}
+    <details open>
+        <summary>SAMLResponse (decoded XML)</summary>
+        <pre class="code wrap" data-lang="xml">{{asString .}}</pre>
+    </details>
+    {{end}}
+    {{with index $art "authn_request_xml"}}
+    <details>
+        <summary>AuthnRequest (XML sent)</summary>
+        <pre class="code wrap" data-lang="xml">{{asString .}}</pre>
+    </details>
+    {{end}}
+</section>
+{{end}}
+
+<section class="card">
+    <h2>Parameters used</h2>
+    <pre class="code" data-lang="json">{{prettyJSON .Details.ParamsUsed}}</pre>
+</section>
+
+<section class="card">
+    <h2>HTTP exchanges ({{len .Exchanges}})</h2>
+    {{if .Exchanges}}
+    {{range .Exchanges}}
+    <details class="exchange">
+        <summary>
+            <span class="badge phase">{{.Phase}}</span>
+            <strong>{{.Method}}</strong> {{.URL}}
+            <span class="muted">→ {{.Status}} · {{.DurationMS}}ms</span>
+        </summary>
+        {{if .Error}}<div class="banner err">{{.Error}}</div>{{end}}
+        <h4>Request headers</h4>
+        <pre class="code" data-lang="json">{{prettyJSON .ReqHeaders}}</pre>
+        {{if .ReqBody}}<h4>Request body</h4><pre class="code wrap" data-lang="auto">{{.ReqBody}}</pre>{{end}}
+        <h4>Response headers</h4>
+        <pre class="code" data-lang="json">{{prettyJSON .RespHeaders}}</pre>
+        {{if .RespBody}}<h4>Response body</h4><pre class="code wrap" data-lang="auto">{{.RespBody}}</pre>{{end}}
+    </details>
+    {{end}}
+    {{else}}
+    <p class="muted">No server-to-server exchanges were captured.</p>
+    {{end}}
+</section>
+
+<div class="actions">
+    <a class="btn secondary" href="/history">Back to history</a>
+    {{if .HasProfile}}<a class="btn" href="/login/{{.ProfileIDVal}}">Run again</a>{{end}}
+</div>
+{{end}}
+{{end}}
+{{end}}

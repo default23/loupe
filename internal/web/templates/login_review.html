@@ -1,0 +1,117 @@
+{{define "content"}}
+<section class="card">
+    <h1>Start login — {{.Profile.Name}}</h1>
+    <p class="muted">
+        <span class="badge {{.Profile.Protocol}}">{{.Profile.Protocol}}</span>
+        Review and customize the request parameters below, then start the login.
+    </p>
+
+    {{if .OIDC}}
+    <form method="post" action="/login/{{.Profile.ID}}/start">
+        <fieldset>
+            <legend>Authorization endpoint</legend>
+            <input name="authorization_endpoint" value="{{.OIDC.AuthorizationEndpoint}}">
+        </fieldset>
+
+        <fieldset>
+            <legend>Authorization request parameters</legend>
+            <p class="hint">These are sent as the query on the authorization redirect. Edit freely.</p>
+            {{$n := len .OIDC.Params}}
+            {{range $i, $p := .OIDC.Params}}
+            <div class="cols kvrow">
+                <input name="p[{{$i}}].key" value="{{$p.Key}}">
+                <input name="p[{{$i}}].value" value="{{$p.Value}}">
+            </div>
+            {{end}}
+            {{range $j := seq $n (add $n 3)}}
+            <div class="cols kvrow">
+                <input name="p[{{$j}}].key" value="" placeholder="param">
+                <input name="p[{{$j}}].value" value="" placeholder="value">
+            </div>
+            {{end}}
+        </fieldset>
+
+        <fieldset>
+            <legend>PKCE</legend>
+            <label>code_verifier (sent to the token endpoint)
+                <input name="code_verifier" value="{{.OIDC.CodeVerifier}}">
+            </label>
+            <p class="hint">The <code>code_challenge</code> above must correspond to this verifier
+                (unless you are intentionally testing a mismatch).</p>
+        </fieldset>
+
+        {{if .Headers}}
+        <fieldset>
+            <legend>Profile headers (from configuration)</legend>
+            <ul class="muted">
+                {{range .Headers}}
+                <li><code>{{.Name}}</code> → phases: {{join .AppliesTo ", "}}{{if .Secret}} (secret){{end}}</li>
+                {{end}}
+            </ul>
+        </fieldset>
+        {{end}}
+
+        <fieldset>
+            <legend>Additional headers for this login only</legend>
+            <p class="hint">Sent on the app's server-to-server calls for this login,
+                on top of the profile headers above. A session header with the same
+                name and phase overrides the profile one.</p>
+            {{range .SessionHeaderRows}}
+            <div class="hdrrow">
+                <input name="hdr[{{.I}}].name" value="{{.H.Name}}" placeholder="Header-Name">
+                <input name="hdr[{{.I}}].value" value="{{.H.Value}}" placeholder="value">
+                <span class="phases">
+                    {{$row := .}}
+                    {{range $.AllPhases}}
+                    <label class="inline tiny"><input type="checkbox" name="hdr[{{$row.I}}].applies" value="{{.}}" {{if contains $row.H.AppliesTo .}}checked{{end}}> {{.}}</label>
+                    {{end}}
+                </span>
+            </div>
+            {{end}}
+        </fieldset>
+
+        <div class="form-actions">
+            <button class="btn" type="submit">Start login →</button>
+            <a class="btn secondary" href="/profiles/{{.Profile.ID}}">Edit profile</a>
+        </div>
+    </form>
+    {{else if .SAML}}
+    <form method="post" action="/login/{{.Profile.ID}}/start">
+        <fieldset>
+            <legend>AuthnRequest</legend>
+            <label>Destination (IdP SSO URL) <input name="saml_destination" value="{{.SAML.Destination}}"></label>
+            <label>SP issuer (Issuer / AudienceURI) <input name="saml_sp_issuer" value="{{.SAML.SPIssuer}}"></label>
+            <label>ACS URL <input name="saml_acs" value="{{.SAML.ACSURL}}"></label>
+            <label>Binding
+                <select name="saml_binding">
+                    <option value="redirect" {{if eq .SAML.Binding "redirect"}}selected{{end}}>HTTP-Redirect</option>
+                    <option value="post" {{if eq .SAML.Binding "post"}}selected{{end}}>HTTP-POST</option>
+                </select>
+            </label>
+            <label>NameID format <input name="saml_nameid_format" value="{{.SAML.NameIDFormat}}"></label>
+            <div class="checks">
+                <label class="inline"><input type="checkbox" name="saml_sign" {{if .SAML.Sign}}checked{{end}}> Sign AuthnRequest</label>
+                <label class="inline"><input type="checkbox" name="saml_force_authn" {{if .SAML.ForceAuthn}}checked{{end}}> ForceAuthn</label>
+                <label class="inline"><input type="checkbox" name="saml_is_passive" {{if .SAML.IsPassive}}checked{{end}}> IsPassive</label>
+            </div>
+            <label>Requested AuthnContext class refs (one per line)
+                <textarea name="saml_rac" rows="2">{{.SAML.RequestedAuthnContext}}</textarea>
+            </label>
+        </fieldset>
+
+        <fieldset>
+            <legend>AuthnRequest preview</legend>
+            <p class="hint">Rebuilt from the fields above after you submit.</p>
+            <pre class="code" data-lang="xml">{{.SAML.RequestXML}}</pre>
+        </fieldset>
+
+        <div class="form-actions">
+            <button class="btn" type="submit">Start login →</button>
+            <a class="btn secondary" href="/profiles/{{.Profile.ID}}">Edit profile</a>
+        </div>
+    </form>
+    {{else}}
+    <div class="banner err">This profile is misconfigured for login.</div>
+    {{end}}
+</section>
+{{end}}

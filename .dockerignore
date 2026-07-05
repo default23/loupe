@@ -1,0 +1,12 @@
+# Keep the build context small and free of secrets/local artifacts.
+.git
+.gitignore
+.env
+*.log
+/loupe
+/bin/
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md
+CLAUDE.md
