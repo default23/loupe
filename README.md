@@ -26,6 +26,9 @@ starting, stores named configuration **profiles**, and keeps a searchable
   artifacts (tokens/claims/assertion/XML), granular validation results, and the
   full captured HTTP exchanges — browsable later from History.
 - **Secrets encrypted at rest** with AES-256-GCM.
+- **Two storage backends:** external **PostgreSQL** (default) or an embedded,
+  file-backed **SQLite** database bundled into the container — no external
+  service required.
 
 ## Screenshots
 
@@ -55,6 +58,15 @@ decoded assertion and attributes, and the syntax-highlighted `SAMLResponse` XML.
 
 ## Quick start (local)
 
+The fastest way to try Loupe is the embedded **SQLite** backend — no database to
+start:
+
+```sh
+DB_DRIVER=sqlite SQLITE_PATH=loupe.db MASTER_KEY=any-passphrase go run ./cmd/loupe
+```
+
+Or run against **PostgreSQL** (the default backend):
+
 ```sh
 # 1. Start PostgreSQL
 docker compose up -d db
@@ -76,8 +88,21 @@ Docker Hub as [`default23/loupe`](https://hub.docker.com/r/default23/loupe).
 `latest` always tracks the `master` branch; released versions are tagged (e.g.
 `default23/loupe:v1.2.3`).
 
-Loupe needs a PostgreSQL database and a `MASTER_KEY`. To run it against an
-existing Postgres:
+Loupe needs a `MASTER_KEY` and a storage backend. The simplest deployment uses
+the **embedded SQLite** database — no external service. Mount a volume at `/data`
+so the database survives container restarts:
+
+```sh
+docker run --rm -p 8080:8080 \
+  -e DB_DRIVER=sqlite \
+  -e SQLITE_PATH="/data/loupe.db" \
+  -e MASTER_KEY="any-passphrase" \
+  -e BASE_URL="http://localhost:8080" \
+  -v loupe_data:/data \
+  default23/loupe:latest
+```
+
+Or run it against an existing **PostgreSQL** (the default backend):
 
 ```sh
 docker run --rm -p 8080:8080 \
@@ -87,13 +112,35 @@ docker run --rm -p 8080:8080 \
   default23/loupe:latest
 ```
 
-Migrations run automatically on startup, so no manual DB setup is needed beyond
-an empty database.
+Migrations run automatically on startup, so no manual DB setup is needed (SQLite
+creates the file itself; Postgres just needs an empty database).
 
 ### docker-compose
 
-The following brings up Loupe together with its database. Save it as
-`compose.yaml` and run `docker compose up`:
+**SQLite (standalone, no database service).** The simplest setup — a single
+container with a persistent volume. Save it as `compose.yaml` and run
+`docker compose up`:
+
+```yaml
+services:
+  loupe:
+    image: default23/loupe:latest
+    ports:
+      - "8080:8080"
+    environment:
+      LISTEN_ADDR: ":8080"
+      BASE_URL: "http://localhost:8080"
+      DB_DRIVER: "sqlite"
+      SQLITE_PATH: "/data/loupe.db"
+      MASTER_KEY: "change-me"   # any non-empty passphrase; keep it stable
+    volumes:
+      - loupe_data:/data
+
+volumes:
+  loupe_data:
+```
+
+**PostgreSQL.** Brings up Loupe together with its database:
 
 ```yaml
 services:
@@ -151,7 +198,9 @@ All settings come from environment variables; see `.env.example`.
 | --- | --- |
 | `LISTEN_ADDR` | HTTP bind address (default `:8080`) |
 | `BASE_URL` | Externally reachable base URL |
-| `POSTGRES_DSN` | PostgreSQL DSN |
+| `DB_DRIVER` | Storage backend: `postgres` (default) or `sqlite` |
+| `POSTGRES_DSN` | PostgreSQL DSN (when `DB_DRIVER=postgres`) |
+| `SQLITE_PATH` | SQLite database file path (when `DB_DRIVER=sqlite`, default `loupe.db`) |
 | `MASTER_KEY` | passphrase for encrypting secrets (hashed to an AES-256 key) |
 
 ## Testing
@@ -168,7 +217,8 @@ responses), covering the full validation logic without external services.
 
 - `cmd/loupe` — entrypoint.
 - `internal/config` — environment configuration.
-- `internal/store` — PostgreSQL pool + embedded goose migrations.
+- `internal/store` — dialect-aware `database/sql` wrapper (PostgreSQL or SQLite)
+  + embedded goose migrations.
 - `internal/crypto` — AES-GCM secret encryption, SP cert/key generation.
 - `internal/httpx` — capturing HTTP transport (custom headers + exchange log).
 - `internal/inspect` — capture model (exchanges, validations).

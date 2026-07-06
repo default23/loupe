@@ -4,10 +4,12 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -40,12 +42,17 @@ func run(logger *slog.Logger) error {
 
 	ctx := context.Background()
 
-	logger.Info("applying migrations")
-	if err := store.Migrate(ctx, cfg.DatabaseURL); err != nil {
+	dialect, dsn, err := storeTarget(cfg)
+	if err != nil {
 		return err
 	}
 
-	st, err := store.Open(ctx, cfg.DatabaseURL)
+	logger.Info("applying migrations", "driver", cfg.DBDriver)
+	if err := store.Migrate(ctx, dialect, dsn); err != nil {
+		return err
+	}
+
+	st, err := store.Open(ctx, dialect, dsn)
 	if err != nil {
 		return err
 	}
@@ -59,9 +66,9 @@ func run(logger *slog.Logger) error {
 		logger.Warn("no master key set; secrets cannot be stored (set MASTER_KEY)")
 	}
 
-	profiles := profile.NewRepo(st.Pool, cipher)
-	inflightRepo := inflight.NewRepo(st.Pool)
-	historyRepo := history.NewRepo(st.Pool)
+	profiles := profile.NewRepo(st.DB, cipher)
+	inflightRepo := inflight.NewRepo(st.DB)
+	historyRepo := history.NewRepo(st.DB)
 
 	srv, err := web.NewServer(cfg, st, profiles, inflightRepo, historyRepo, cipher, logger)
 	if err != nil {
@@ -92,4 +99,24 @@ func run(logger *slog.Logger) error {
 	toCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return httpSrv.Shutdown(toCtx)
+}
+
+// storeTarget maps the configured driver to a store dialect and DSN. For SQLite
+// it ensures the parent directory exists and enables foreign keys / a busy
+// timeout via connection pragmas.
+func storeTarget(cfg *config.Config) (store.Dialect, string, error) {
+	switch cfg.DBDriver {
+	case config.DriverPostgres:
+		return store.DialectPostgres, cfg.DatabaseURL, nil
+	case config.DriverSQLite:
+		if dir := filepath.Dir(cfg.SQLitePath); dir != "" && dir != "." {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return "", "", fmt.Errorf("create sqlite dir: %w", err)
+			}
+		}
+		dsn := "file:" + cfg.SQLitePath + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
+		return store.DialectSQLite, dsn, nil
+	default:
+		return "", "", fmt.Errorf("unsupported DB_DRIVER %q", cfg.DBDriver)
+	}
 }

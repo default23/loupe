@@ -22,32 +22,44 @@ Go is **1.26** and may not be on `PATH` in this environment — it lives at
 `~/sdk/go1.26.4/bin/go`. Prefix commands with `export PATH=$PATH:$HOME/sdk/go1.26.4/bin`.
 
 ```sh
+# Postgres backend (default)
 docker compose up -d db                       # Postgres on :5432 (user/pass/db = loupe)
 export POSTGRES_DSN="postgres://loupe:loupe@localhost:5432/loupe?sslmode=disable"
 export MASTER_KEY="any-passphrase"   # required to store secrets
 go run ./cmd/loupe                           # serves on :8080
+
+# SQLite backend (embedded, no external DB)
+export DB_DRIVER=sqlite SQLITE_PATH=loupe.db MASTER_KEY="any-passphrase"
+go run ./cmd/loupe
+
 go build ./... && go vet ./... && go test ./...
 ```
 
 Migrations run automatically on startup (goose, embedded). The full test suite
 needs **no** database — `internal/oidc` and `internal/saml` run against
 in-process mock providers with real signed tokens/responses. Only manual
-end-to-end runs of the web app need Postgres.
+end-to-end runs of the web app need a database (Postgres or a throwaway SQLite file).
 
 ## Configuration (env)
 
 `LISTEN_ADDR` (`:8080`), `BASE_URL` (derives `/oidc/callback` and
-`/saml/acs`, must match what's registered at the IdP), `POSTGRES_DSN`,
-`MASTER_KEY` (any passphrase, hashed to an AES-256 key). See `internal/config/config.go` — parsed
-with `github.com/caarlos0/env/v11` via `env`/`envDefault` struct tags.
+`/saml/acs`, must match what's registered at the IdP), `MASTER_KEY` (any
+passphrase, hashed to an AES-256 key). Storage backend is chosen by `DB_DRIVER`:
+`postgres` (default) reads `POSTGRES_DSN`; `sqlite` reads `SQLITE_PATH`
+(default `loupe.db`, file-backed, no external service). See
+`internal/config/config.go` — parsed with `github.com/caarlos0/env/v11` via
+`env`/`envDefault` struct tags. The `docker compose --profile standalone up
+loupe` service runs the SQLite backend with a persistent `/data` volume.
 
 ## Architecture (layered; higher imports lower, no cycles)
 
 ```
 cmd/loupe ─ wires everything, graceful shutdown
 internal/
-  config      env config
-  store       pgxpool + embedded goose migrations (migrations/*.sql)
+  config      env config (DB_DRIVER selects postgres|sqlite)
+  store       database/sql wrapper (dialect-aware $N rebind) + embedded goose
+              migrations (migrations/{postgres,sqlite}/*.sql); pgx stdlib and
+              modernc.org/sqlite drivers
   crypto      AES-256-GCM (Cipher) + GenerateSPKeyPair (RSA self-signed)
   inspect     capture model: Exchange, Validation, Recorder
   httpx       capturing http.Client: injects headers by phase, records exchanges
@@ -59,10 +71,18 @@ internal/
   web         handlers + html/template + HTMX (templates/, static/)
 ```
 
-Key libraries: `jackc/pgx/v5`, `pressly/goose/v3`, `coreos/go-oidc/v3` +
-`golang.org/x/oauth2`, `russellhaering/gosaml2` + `goxmldsig`, `beevik/etree`.
+Key libraries: `jackc/pgx/v5` (stdlib driver), `modernc.org/sqlite` (pure-Go),
+`pressly/goose/v3`, `coreos/go-oidc/v3` + `golang.org/x/oauth2`,
+`russellhaering/gosaml2` + `goxmldsig`, `beevik/etree`.
 
-## Data model (PostgreSQL, one migration: `internal/store/migrations/00001_init.sql`)
+## Data model (one migration per dialect: `internal/store/migrations/{postgres,sqlite}/00001_init.sql`)
+
+Both backends go through `database/sql` behind `store.DB`, which rewrites `$N`
+placeholders to `?` for SQLite (reordering args, since some queries reference
+`$1` after `$2`). Queries pass `time.Now()` from Go rather than SQL `now()` so
+they are dialect-neutral. Postgres types map to SQLite as: `JSONB`→`TEXT`,
+`BYTEA`→`BLOB`, `TIMESTAMPTZ`→`TIMESTAMP`, `BIGINT … IDENTITY`→`INTEGER … AUTOINCREMENT`.
+When adding schema changes, add a **new** `NNNNN_*.sql` to **both** dialect dirs.
 
 - `profiles` — `config` JSONB (non-secret), `secrets` BYTEA (AES-GCM JSON blob),
   `custom_headers` JSONB. Secret material (client_secret, SP private key, secret
@@ -75,7 +95,8 @@ Key libraries: `jackc/pgx/v5`, `pressly/goose/v3`, `coreos/go-oidc/v3` +
 - `login_attempts` (+ `profile_name` snapshot), `attempt_details`
   (params_used / artifacts / validations JSONB), `http_exchanges`.
 
-Add schema changes as a **new** `NNNNN_*.sql` goose file, never edit the applied one.
+Add schema changes as a **new** `NNNNN_*.sql` goose file in **both**
+`migrations/postgres/` and `migrations/sqlite/`, never edit the applied one.
 
 ## How the flows work
 

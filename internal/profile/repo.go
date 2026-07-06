@@ -6,31 +6,30 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"time"
 
 	"github.com/default23/loupe/internal/crypto"
+	"github.com/default23/loupe/internal/store"
 )
 
 // ErrNotFound is returned when a profile does not exist.
 var ErrNotFound = errors.New("profile not found")
 
-// Repo persists profiles in PostgreSQL, encrypting secrets with the cipher.
+// Repo persists profiles, encrypting secrets with the cipher.
 type Repo struct {
-	pool   *pgxpool.Pool
+	db     *store.DB
 	cipher *crypto.Cipher
 }
 
 // NewRepo builds a profile repository. cipher may be nil, in which case
 // operations that require storing/reading secrets fail with crypto.ErrNoKey.
-func NewRepo(pool *pgxpool.Pool, cipher *crypto.Cipher) *Repo {
-	return &Repo{pool: pool, cipher: cipher}
+func NewRepo(db *store.DB, cipher *crypto.Cipher) *Repo {
+	return &Repo{db: db, cipher: cipher}
 }
 
 // List returns profile summaries ordered by name.
 func (r *Repo) List(ctx context.Context) ([]Summary, error) {
-	rows, err := r.pool.Query(ctx,
+	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, protocol, updated_at FROM profiles ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -56,11 +55,11 @@ func (r *Repo) Get(ctx context.Context, id int64) (*Profile, error) {
 		headersJSON []byte
 		secretsBlob []byte
 	)
-	err := r.pool.QueryRow(ctx,
+	err := r.db.QueryRowContext(ctx,
 		`SELECT id, name, protocol, config, custom_headers, secrets, created_at, updated_at
 		   FROM profiles WHERE id = $1`, id).
 		Scan(&p.ID, &p.Name, &p.Protocol, &configJSON, &headersJSON, &secretsBlob, &p.CreatedAt, &p.UpdatedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, store.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
@@ -100,12 +99,17 @@ func (r *Repo) Create(ctx context.Context, p *Profile) error {
 	if err != nil {
 		return err
 	}
-	err = r.pool.QueryRow(ctx,
-		`INSERT INTO profiles (name, protocol, config, custom_headers, secrets)
-		 VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at`,
-		p.Name, p.Protocol, configJSON, headersJSON, secretsBlob).
-		Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
-	return err
+	now := time.Now().UTC()
+	err = r.db.QueryRowContext(ctx,
+		`INSERT INTO profiles (name, protocol, config, custom_headers, secrets, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+		p.Name, p.Protocol, configJSON, headersJSON, secretsBlob, now, now).
+		Scan(&p.ID)
+	if err != nil {
+		return err
+	}
+	p.CreatedAt, p.UpdatedAt = now, now
+	return nil
 }
 
 // Update saves changes to an existing profile.
@@ -114,28 +118,30 @@ func (r *Repo) Update(ctx context.Context, p *Profile) error {
 	if err != nil {
 		return err
 	}
-	ct, err := r.pool.Exec(ctx,
+	now := time.Now().UTC()
+	res, err := r.db.ExecContext(ctx,
 		`UPDATE profiles
 		    SET name = $2, protocol = $3, config = $4, custom_headers = $5,
-		        secrets = $6, updated_at = now()
+		        secrets = $6, updated_at = $7
 		  WHERE id = $1`,
-		p.ID, p.Name, p.Protocol, configJSON, headersJSON, secretsBlob)
+		p.ID, p.Name, p.Protocol, configJSON, headersJSON, secretsBlob, now)
 	if err != nil {
 		return err
 	}
-	if ct.RowsAffected() == 0 {
+	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
+	p.UpdatedAt = now
 	return nil
 }
 
 // Delete removes a profile.
 func (r *Repo) Delete(ctx context.Context, id int64) error {
-	ct, err := r.pool.Exec(ctx, `DELETE FROM profiles WHERE id = $1`, id)
+	res, err := r.db.ExecContext(ctx, `DELETE FROM profiles WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
-	if ct.RowsAffected() == 0 {
+	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
 	return nil

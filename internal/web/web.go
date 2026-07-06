@@ -121,7 +121,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	if err := s.st.Pool.Ping(r.Context()); err != nil {
+	if err := s.st.Ping(r.Context()); err != nil {
 		http.Error(w, "db unavailable", http.StatusServiceUnavailable)
 		return
 	}

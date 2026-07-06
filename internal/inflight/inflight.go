@@ -8,8 +8,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/default23/loupe/internal/store"
 )
 
 // ErrNotFound is returned when no matching in-flight record exists.
@@ -30,16 +29,16 @@ type Record struct {
 
 // Repo persists in-flight logins.
 type Repo struct {
-	pool *pgxpool.Pool
+	db *store.DB
 }
 
 // NewRepo builds an in-flight repository.
-func NewRepo(pool *pgxpool.Pool) *Repo { return &Repo{pool: pool} }
+func NewRepo(db *store.DB) *Repo { return &Repo{db: db} }
 
 // Save inserts (or replaces) an in-flight record.
 func (r *Repo) Save(ctx context.Context, rec *Record) error {
 	params, _ := json.Marshal(rec.Params)
-	_, err := r.pool.Exec(ctx,
+	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO in_flight_logins
 		   (state, profile_id, protocol, code_verifier, nonce, relay_state, request_id, customized_params, expires_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
@@ -73,13 +72,13 @@ func (r *Repo) takeBy(ctx context.Context, col, val string) (*Record, error) {
 		params []byte
 	)
 	// DELETE ... RETURNING makes the lookup single-use and atomic.
-	err := r.pool.QueryRow(ctx,
+	err := r.db.QueryRowContext(ctx,
 		`DELETE FROM in_flight_logins WHERE `+col+` = $1
 		 RETURNING state, profile_id, protocol, code_verifier, nonce, relay_state, request_id, customized_params, expires_at`,
 		val).
 		Scan(&rec.State, &rec.ProfileID, &rec.Protocol, &rec.CodeVerifier, &rec.Nonce,
 			&rec.RelayState, &rec.RequestID, &params, &rec.ExpiresAt)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, store.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
@@ -94,6 +93,6 @@ func (r *Repo) takeBy(ctx context.Context, col, val string) (*Record, error) {
 
 // DeleteExpired removes stale records (housekeeping).
 func (r *Repo) DeleteExpired(ctx context.Context) error {
-	_, err := r.pool.Exec(ctx, `DELETE FROM in_flight_logins WHERE expires_at < now()`)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM in_flight_logins WHERE expires_at < $1`, time.Now().UTC())
 	return err
 }

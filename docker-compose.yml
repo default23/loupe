@@ -1,4 +1,22 @@
 services:
+  # Standalone Loupe using the embedded SQLite backend — no external database.
+  # The database lives on the loupe_data volume inside the container. It is in the
+  # "standalone" profile so it does not clash with keycloak's :8080 by default.
+  # Start it on its own with:  docker compose --profile standalone up loupe
+  loupe:
+    build: .
+    profiles: ["standalone"]
+    environment:
+      DB_DRIVER: sqlite
+      SQLITE_PATH: /data/loupe.db
+      BASE_URL: http://localhost:8080
+      # Set a real passphrase to enable storing secrets (client_secret, SP key).
+      MASTER_KEY: change-me
+    ports:
+      - "8080:8080"
+    volumes:
+      - loupe_data:/data
+
   db:
     image: postgres:16-alpine
     environment:
@@ -29,3 +47,4 @@ services:
 
 volumes:
   loupe_pgdata:
+  loupe_data:

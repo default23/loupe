@@ -5,42 +5,52 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"time"
 
 	"github.com/default23/loupe/internal/inspect"
+	"github.com/default23/loupe/internal/store"
 )
 
 // ErrNotFound is returned when an attempt does not exist.
 var ErrNotFound = errors.New("attempt not found")
 
+// scanner is satisfied by both *sql.Row and *sql.Rows.
+type scanner interface {
+	Scan(dest ...any) error
+}
+
 // Repo persists login attempts.
 type Repo struct {
-	pool *pgxpool.Pool
+	db *store.DB
 }
 
 // NewRepo builds a history repository.
-func NewRepo(pool *pgxpool.Pool) *Repo { return &Repo{pool: pool} }
+func NewRepo(db *store.DB) *Repo { return &Repo{db: db} }
 
 // Start inserts a new attempt in the "started" state, filling ID and StartedAt.
 func (r *Repo) Start(ctx context.Context, a *Attempt) error {
 	summaryJSON, _ := json.Marshal(a.Summary)
-	return r.pool.QueryRow(ctx,
-		`INSERT INTO login_attempts (profile_id, profile_name, protocol, status, external_base_url, summary)
-		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, started_at`,
-		a.ProfileID, a.ProfileName, a.Protocol, StatusStarted, a.ExternalBaseURL, summaryJSON).
-		Scan(&a.ID, &a.StartedAt)
+	now := time.Now().UTC()
+	err := r.db.QueryRowContext(ctx,
+		`INSERT INTO login_attempts (profile_id, profile_name, protocol, status, external_base_url, summary, started_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+		a.ProfileID, a.ProfileName, a.Protocol, StatusStarted, a.ExternalBaseURL, summaryJSON, now).
+		Scan(&a.ID)
+	if err != nil {
+		return err
+	}
+	a.StartedAt = now
+	return nil
 }
 
 // Finish updates the terminal status, error, and summary of an attempt.
 func (r *Repo) Finish(ctx context.Context, id int64, status, errMsg string, summary Summary) error {
 	summaryJSON, _ := json.Marshal(summary)
-	_, err := r.pool.Exec(ctx,
+	_, err := r.db.ExecContext(ctx,
 		`UPDATE login_attempts
-		    SET status = $2, error = $3, summary = $4, finished_at = now()
+		    SET status = $2, error = $3, summary = $4, finished_at = $5
 		  WHERE id = $1`,
-		id, status, errMsg, summaryJSON)
+		id, status, errMsg, summaryJSON, time.Now().UTC())
 	return err
 }
 
@@ -49,7 +59,7 @@ func (r *Repo) SaveDetails(ctx context.Context, attemptID int64, d Details) erro
 	params, _ := json.Marshal(orEmptyObj(d.ParamsUsed))
 	artifacts, _ := json.Marshal(orEmptyObj(d.Artifacts))
 	validations, _ := json.Marshal(orEmptyArr(d.Validations))
-	_, err := r.pool.Exec(ctx,
+	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO attempt_details (attempt_id, params_used, artifacts, validations)
 		 VALUES ($1, $2, $3, $4)
 		 ON CONFLICT (attempt_id) DO UPDATE
@@ -65,24 +75,20 @@ func (r *Repo) SaveExchanges(ctx context.Context, attemptID int64, exs []inspect
 	if len(exs) == 0 {
 		return nil
 	}
-	batch := &pgx.Batch{}
-	for _, e := range exs {
-		reqH, _ := json.Marshal(e.ReqHeaders)
-		respH, _ := json.Marshal(e.RespHeaders)
-		batch.Queue(
-			`INSERT INTO http_exchanges
-			   (attempt_id, seq, phase, method, url, req_headers, req_body, status, resp_headers, resp_body, duration_ms, ts)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-			attemptID, e.Seq, e.Phase, e.Method, e.URL, reqH, e.ReqBody, e.Status, respH, e.RespBody, e.DurationMS, e.Time)
-	}
-	br := r.pool.SendBatch(ctx, batch)
-	defer br.Close()
-	for range exs {
-		if _, err := br.Exec(); err != nil {
-			return err
+	return r.db.WithTx(ctx, func(tx *store.Tx) error {
+		for _, e := range exs {
+			reqH, _ := json.Marshal(e.ReqHeaders)
+			respH, _ := json.Marshal(e.RespHeaders)
+			if _, err := tx.ExecContext(ctx,
+				`INSERT INTO http_exchanges
+				   (attempt_id, seq, phase, method, url, req_headers, req_body, status, resp_headers, resp_body, duration_ms, ts)
+				 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+				attemptID, e.Seq, e.Phase, e.Method, e.URL, reqH, e.ReqBody, e.Status, respH, e.RespBody, e.DurationMS, e.Time); err != nil {
+				return err
+			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // List returns attempts matching the filter, newest first.
@@ -114,7 +120,7 @@ func (r *Repo) List(ctx context.Context, f Filter) ([]Attempt, error) {
 		q += fmt.Sprintf(" LIMIT $%d", len(args))
 	}
 
-	rows, err := r.pool.Query(ctx, q, args...)
+	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,12 +139,12 @@ func (r *Repo) List(ctx context.Context, f Filter) ([]Attempt, error) {
 
 // Get loads a full attempt: base record, details, and exchanges.
 func (r *Repo) Get(ctx context.Context, id int64) (*FullAttempt, error) {
-	row := r.pool.QueryRow(ctx,
+	row := r.db.QueryRowContext(ctx,
 		`SELECT id, profile_id, profile_name, protocol, status, external_base_url,
 		        COALESCE(error, ''), summary, started_at, finished_at
 		   FROM login_attempts WHERE id = $1`, id)
 	a, err := scanAttempt(row)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, store.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
@@ -149,10 +155,10 @@ func (r *Repo) Get(ctx context.Context, id int64) (*FullAttempt, error) {
 
 	// Details (may be absent).
 	var params, artifacts, validations []byte
-	err = r.pool.QueryRow(ctx,
+	err = r.db.QueryRowContext(ctx,
 		`SELECT params_used, artifacts, validations FROM attempt_details WHERE attempt_id = $1`, id).
 		Scan(&params, &artifacts, &validations)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil && !errors.Is(err, store.ErrNoRows) {
 		return nil, err
 	}
 	if err == nil {
@@ -162,7 +168,7 @@ func (r *Repo) Get(ctx context.Context, id int64) (*FullAttempt, error) {
 	}
 
 	// Exchanges.
-	exRows, err := r.pool.Query(ctx,
+	exRows, err := r.db.QueryContext(ctx,
 		`SELECT seq, phase, method, url, req_headers, req_body, status, resp_headers, resp_body, duration_ms, ts
 		   FROM http_exchanges WHERE attempt_id = $1 ORDER BY seq`, id)
 	if err != nil {
@@ -186,7 +192,7 @@ func (r *Repo) Get(ctx context.Context, id int64) (*FullAttempt, error) {
 }
 
 // scanAttempt scans a row from either Query or QueryRow into an Attempt.
-func scanAttempt(row pgx.Row) (Attempt, error) {
+func scanAttempt(row scanner) (Attempt, error) {
 	var (
 		a           Attempt
 		summaryJSON []byte
