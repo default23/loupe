@@ -41,9 +41,12 @@ func (s *Server) handleLoginReview(w http.ResponseWriter, r *http.Request) {
 	prior := s.priorAttempt(r, p)
 
 	data := map[string]any{
-		"Title":       "Start login — " + p.Name,
-		"Profile":     p,
-		"Headers":     p.CustomHeaders,
+		"Title":   "Start login — " + p.Name,
+		"Profile": p,
+		// Secret profile headers are shown read-only: their values live only in
+		// the encrypted profile and are applied server-side, never placed in the
+		// form (which would persist them unencrypted in in_flight_logins).
+		"Headers":     secretHeaders(p.CustomHeaders),
 		"RedirectURI": s.redirectURI(),
 		"ACSURL":      s.acsURL(),
 	}
@@ -59,9 +62,11 @@ func (s *Server) handleLoginReview(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		data["OIDC"] = start
-		// Prefill per-session header rows from the prior attempt, if any.
+		// Prefill the editable header rows from the prior attempt when re-running,
+		// otherwise from the profile's non-secret headers so they are visible and
+		// editable for this login.
 		data["AllPhases"] = profile.AllHeaderPhases
-		data["SessionHeaderRows"] = sessionHeaderRows(prior)
+		data["SessionHeaderRows"] = sessionHeaderRows(prior, p)
 	case profile.SAML:
 		start, err := s.buildSAMLReview(p, prior)
 		if err != nil {
@@ -129,8 +134,12 @@ func oidcStartFromDetails(d history.Details) *oidc.Start {
 }
 
 // sessionHeaderRows builds the indexed per-session header rows for the review
-// form, prefilled from a prior attempt's session headers (plus spare blanks).
-func sessionHeaderRows(d history.Details) []headerRow {
+// form. When re-running a prior attempt it prefills from that attempt's session
+// headers; otherwise it seeds the rows with the profile's non-secret headers so
+// they are visible and editable before starting the login. Secret header values
+// are never seeded here — they stay in the encrypted profile and are applied
+// server-side (shown read-only above). Spare blank rows are always appended.
+func sessionHeaderRows(d history.Details, p *profile.Profile) []headerRow {
 	var chs []profile.CustomHeader
 	if d.ParamsUsed != nil {
 		if raw, ok := d.ParamsUsed["session_headers"]; ok && raw != nil {
@@ -139,7 +148,27 @@ func sessionHeaderRows(d history.Details) []headerRow {
 			}
 		}
 	}
+	if len(chs) == 0 {
+		for _, h := range p.CustomHeaders {
+			if h.Secret {
+				continue
+			}
+			chs = append(chs, h)
+		}
+	}
 	return buildHeaderRows(&profile.Profile{CustomHeaders: chs})
+}
+
+// secretHeaders returns only the secret headers from the given set, used to list
+// them read-only on the review page (their values are applied server-side).
+func secretHeaders(chs []profile.CustomHeader) []profile.CustomHeader {
+	var out []profile.CustomHeader
+	for _, h := range chs {
+		if h.Secret {
+			out = append(out, h)
+		}
+	}
+	return out
 }
 
 // handleLoginStart persists in-flight state and redirects to the provider.

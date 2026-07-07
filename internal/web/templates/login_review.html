@@ -42,20 +42,21 @@
 
         {{if .Headers}}
         <fieldset>
-            <legend>Profile headers (from configuration)</legend>
+            <legend>Secret profile headers (applied server-side)</legend>
+            <p class="hint">Their values stay in the encrypted profile and are not editable here.</p>
             <ul class="muted">
                 {{range .Headers}}
-                <li><code>{{.Name}}</code> → phases: {{join .AppliesTo ", "}}{{if .Secret}} (secret){{end}}</li>
+                <li><code>{{.Name}}</code> → phases: {{join .AppliesTo ", "}} (secret)</li>
                 {{end}}
             </ul>
         </fieldset>
         {{end}}
 
         <fieldset>
-            <legend>Additional headers for this login only</legend>
-            <p class="hint">Sent on the app's server-to-server calls for this login,
-                on top of the profile headers above. A session header with the same
-                name and phase overrides the profile one.</p>
+            <legend>Headers for this login</legend>
+            <p class="hint">Prefilled from the profile's non-secret headers — edit, add,
+                or override them for this login only. Sent on the app's server-to-server
+                calls. A header with the same name and phase as a profile header overrides it.</p>
             {{range .SessionHeaderRows}}
             <div class="hdrrow">
                 <input name="hdr[{{.I}}].name" value="{{.H.Name}}" placeholder="Header-Name">
