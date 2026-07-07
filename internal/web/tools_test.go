@@ -41,6 +41,10 @@ func TestToolFragmentsExecute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fullCerts, err := crypto.ParseCertChain(kp.CertPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cases := []struct {
 		page, block string
@@ -71,6 +75,8 @@ func TestToolFragmentsExecute(t *testing.T) {
 		{"tool_encode.html", "encode_result", &encodeReadout{Output: "aGk="}},
 		{"tool_cert.html", "cert_result", &certReadout{Info: certInfo}},
 		{"tool_cert.html", "keypair_result", &certReadout{KeyPair: kp}},
+		{"tool_tlscert.html", "tlscert_result", &tlsCertReadout{Source: "pem", Certs: fullCerts}},
+		{"tool_tlscert.html", "tlscert_result", &tlsCertReadout{Source: "host", Error: "connect failed"}},
 		{"tool_jwks.html", "jwks_result", &jwksReadout{
 			Keys: []oidc.JWKSKey{{Kid: "k1", Kty: "RSA", Alg: "RS256", Use: "sig", Bits: 2048, Thumbprint: "tp"}},
 		}},

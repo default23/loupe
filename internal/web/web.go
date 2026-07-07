@@ -40,6 +40,7 @@ var pages = []string{
 	"tool_saml_authnrequest.html",
 	"tool_encode.html",
 	"tool_cert.html",
+	"tool_tlscert.html",
 	"tool_jwks.html",
 }
 
@@ -114,6 +115,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /tools/cert", s.handleCertPage)
 	mux.HandleFunc("POST /tools/cert/inspect", s.handleCertInspect)
 	mux.HandleFunc("POST /tools/cert/generate", s.handleCertGenerate)
+	mux.HandleFunc("GET /tools/tls-cert", s.handleTLSCertPage)
+	mux.HandleFunc("POST /tools/tls-cert/parse", s.handleTLSCertParse)
 	mux.HandleFunc("GET /tools/jwks", s.handleJWKSPage)
 	mux.HandleFunc("POST /tools/jwks/view", s.handleJWKSView)
 

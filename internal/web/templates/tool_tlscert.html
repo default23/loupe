@@ -1,0 +1,146 @@
+{{define "content"}}
+<p class="eyebrow"><a href="/tools">Tools</a> · Parse TLS Certificate</p>
+<h1 class="section-title">Parse TLS Certificate</h1>
+<p class="hint">Paste a PEM certificate (or a full chain), or fetch the chain a TLS server
+    presents. Every field is decoded — subject, SANs, key usage, extensions, and
+    fingerprints.</p>
+
+<div class="tool-split">
+    <section class="pane specimen">
+        <div class="pane-head"><p class="eyebrow">Certificate (PEM)</p></div>
+        <form hx-post="/tools/tls-cert/parse" hx-target="#readout-body" hx-swap="innerHTML"
+              hx-trigger="input changed delay:300ms">
+            <input type="hidden" name="source" value="pem">
+            <label for="pem">Paste one or more certificates</label>
+            <textarea id="pem" name="pem" class="slot mono" spellcheck="false"
+                      placeholder="-----BEGIN CERTIFICATE-----&#10;MIID…&#10;-----END CERTIFICATE-----"></textarea>
+        </form>
+
+        <div class="pane-head" style="margin-top:1rem"><p class="eyebrow">Or fetch from a server</p></div>
+        <form hx-post="/tools/tls-cert/parse" hx-target="#readout-body" hx-swap="innerHTML"
+              hx-trigger="submit">
+            <input type="hidden" name="source" value="host">
+            <label for="host">Host (defaults to port 443)</label>
+            <div class="cols">
+                <input id="host" name="host" type="text" autocomplete="off" spellcheck="false"
+                       placeholder="idp.example.com  or  idp.example.com:8443">
+                <button class="btn" type="submit">Fetch chain</button>
+            </div>
+            <p class="hint">Connects to the server and reads the certificates it presents.
+                The chain is not trust-verified — expired or self-signed chains are shown as-is.</p>
+        </form>
+    </section>
+
+    <section class="pane readout">
+        <div class="pane-head">
+            <p class="eyebrow">Readout</p>
+            <span class="readout-status">parsed</span>
+        </div>
+        <div id="readout-body">
+            <p class="tool-hint">Paste a certificate or fetch a server to inspect it.</p>
+        </div>
+    </section>
+</div>
+{{end}}
+
+{{define "tlscert_result"}}
+{{if .Error}}
+<div class="banner err"><span class="banner-tag">error</span>{{.Error}}</div>
+{{else if not .Certs}}
+<p class="tool-hint">Paste a certificate or fetch a server to inspect it.</p>
+{{else}}
+{{if gt (len .Certs) 1}}<p class="hint">Chain of {{len .Certs}} certificates.</p>{{end}}
+{{range .Certs}}
+<section class="card cert-card">
+    <div class="pane-head">
+        <p class="eyebrow">{{if gt .Position 0}}#{{add .Position 1}} · {{end}}{{.Label}}</p>
+        {{if .Expired}}<span class="badge status-failed">expired</span>
+        {{else if .NotYetValid}}<span class="badge status-started">not yet valid</span>
+        {{else}}<span class="badge status-success">valid</span>{{end}}
+        {{if .SelfSigned}}<span class="badge phase">self-signed</span>{{end}}
+        {{if .IsCA}}<span class="badge phase">CA</span>{{end}}
+    </div>
+
+    <h3>Subject</h3>
+    <table class="kvtable">
+        {{range .SubjectParts}}<tr><td>{{.Field}}</td><td><code>{{.Value}}</code></td></tr>{{end}}
+        <tr><td>Full DN</td><td><code>{{.SubjectDN}}</code></td></tr>
+    </table>
+
+    <h3>Issuer</h3>
+    <table class="kvtable">
+        {{range .IssuerParts}}<tr><td>{{.Field}}</td><td><code>{{.Value}}</code></td></tr>{{end}}
+        <tr><td>Full DN</td><td><code>{{.IssuerDN}}</code></td></tr>
+    </table>
+
+    <h3>Validity</h3>
+    <table class="kvtable">
+        <tr><td>Not before</td><td>{{.NotBefore}}</td></tr>
+        <tr><td>Not after</td><td>{{.NotAfter}} <span class="muted">({{.ExpiryNote}})</span></td></tr>
+        <tr><td>Valid for</td><td>{{.ValidFor}}</td></tr>
+    </table>
+
+    <h3>Key &amp; signature</h3>
+    <table class="kvtable">
+        <tr><td>Serial (hex)</td><td><code>{{.SerialHex}}</code></td></tr>
+        <tr><td>Serial (dec)</td><td><code>{{.SerialDec}}</code></td></tr>
+        <tr><td>Version</td><td>v{{.Version}}</td></tr>
+        <tr><td>Public key</td><td>{{.PublicKeyAlgorithm}}{{if .PublicKeyBits}} ({{.PublicKeyBits}}-bit){{end}}{{if .PublicKeyDetail}} · {{.PublicKeyDetail}}{{end}}</td></tr>
+        <tr><td>Signature</td><td>{{.SignatureAlgorithm}}</td></tr>
+        {{if .KeyUsage}}<tr><td>Key usage</td><td>{{join .KeyUsage ", "}}</td></tr>{{end}}
+        {{if .ExtKeyUsage}}<tr><td>Ext key usage</td><td>{{join .ExtKeyUsage ", "}}</td></tr>{{end}}
+        <tr><td>Basic constraints</td><td>CA: {{if .IsCA}}yes{{else}}no{{end}}{{if .HasMaxPathLen}} · max path len: {{.MaxPathLen}}{{end}}</td></tr>
+        {{if .SubjectKeyID}}<tr><td>Subject key ID</td><td><code>{{.SubjectKeyID}}</code></td></tr>{{end}}
+        {{if .AuthorityKeyID}}<tr><td>Authority key ID</td><td><code>{{.AuthorityKeyID}}</code></td></tr>{{end}}
+    </table>
+
+    {{if or .DNSNames .IPAddresses .EmailAddresses .URIs}}
+    <h3>Subject Alternative Names</h3>
+    <table class="kvtable">
+        {{if .DNSNames}}<tr><td>DNS</td><td>{{join .DNSNames ", "}}</td></tr>{{end}}
+        {{if .IPAddresses}}<tr><td>IP</td><td>{{join .IPAddresses ", "}}</td></tr>{{end}}
+        {{if .EmailAddresses}}<tr><td>Email</td><td>{{join .EmailAddresses ", "}}</td></tr>{{end}}
+        {{if .URIs}}<tr><td>URI</td><td>{{join .URIs ", "}}</td></tr>{{end}}
+    </table>
+    {{end}}
+
+    {{if or .OCSPServers .IssuingURLs .CRLPoints .Policies}}
+    <h3>Revocation &amp; policies</h3>
+    <table class="kvtable">
+        {{if .OCSPServers}}<tr><td>OCSP</td><td>{{join .OCSPServers ", "}}</td></tr>{{end}}
+        {{if .IssuingURLs}}<tr><td>CA issuers</td><td>{{join .IssuingURLs ", "}}</td></tr>{{end}}
+        {{if .CRLPoints}}<tr><td>CRL</td><td>{{join .CRLPoints ", "}}</td></tr>{{end}}
+        {{if .Policies}}<tr><td>Policies</td><td>{{join .Policies ", "}}</td></tr>{{end}}
+    </table>
+    {{end}}
+
+    {{if .Extensions}}
+    <h3>Extensions</h3>
+    <table class="grid">
+        <thead><tr><th>Extension</th><th>OID</th><th>Critical</th></tr></thead>
+        <tbody>
+            {{range .Extensions}}
+            <tr>
+                <td>{{if .Name}}{{.Name}}{{else}}<span class="muted">unknown</span>{{end}}</td>
+                <td><code>{{.OID}}</code></td>
+                <td>{{if .Critical}}<span class="badge status-failed">critical</span>{{else}}—{{end}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{end}}
+
+    <h3>Fingerprints</h3>
+    <table class="kvtable">
+        <tr><td>SHA-256</td><td><code>{{.SHA256Fingerprint}}</code></td></tr>
+        <tr><td>SHA-1</td><td><code>{{.SHA1Fingerprint}}</code></td></tr>
+    </table>
+
+    <details>
+        <summary>PEM</summary>
+        <pre class="code wrap">{{.PEM}}</pre>
+    </details>
+</section>
+{{end}}
+{{end}}
+{{end}}

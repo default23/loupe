@@ -332,6 +332,55 @@ func (s *Server) handleCertGenerate(w http.ResponseWriter, r *http.Request) {
 	s.renderPartial(w, "tool_cert.html", "keypair_result", out)
 }
 
+// --- Parse TLS Certificate ---
+
+type tlsCertReadout struct {
+	Source string // "pem" | "host"
+	Host   string
+	Certs  []*crypto.FullCertInfo
+	Error  string
+}
+
+func (s *Server) handleTLSCertPage(w http.ResponseWriter, r *http.Request) {
+	s.render(w, r, "tool_tlscert.html", map[string]any{"Title": "Parse TLS Certificate"})
+}
+
+func (s *Server) handleTLSCertParse(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	source := r.FormValue("source")
+	out := &tlsCertReadout{Source: source}
+
+	switch source {
+	case "host":
+		host := strings.TrimSpace(r.FormValue("host"))
+		out.Host = host
+		if host == "" {
+			s.renderPartial(w, "tool_tlscert.html", "tlscert_result", out)
+			return
+		}
+		certs, err := crypto.FetchTLSCertChain(r.Context(), host)
+		if err != nil {
+			out.Error = err.Error()
+		} else {
+			out.Certs = certs
+		}
+	default:
+		out.Source = "pem"
+		pemStr := strings.TrimSpace(r.FormValue("pem"))
+		if pemStr == "" {
+			s.renderPartial(w, "tool_tlscert.html", "tlscert_result", out)
+			return
+		}
+		certs, err := crypto.ParseCertChain(pemStr)
+		if err != nil {
+			out.Error = err.Error()
+		} else {
+			out.Certs = certs
+		}
+	}
+	s.renderPartial(w, "tool_tlscert.html", "tlscert_result", out)
+}
+
 // --- JWKS viewer ---
 
 type jwksReadout struct {
