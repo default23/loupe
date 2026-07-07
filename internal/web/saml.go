@@ -30,8 +30,9 @@ type samlReview struct {
 	RequestXML            string
 }
 
-func (s *Server) buildSAMLReview(p *profile.Profile) (any, error) {
+func (s *Server) buildSAMLReview(p *profile.Profile, prior history.Details) (any, error) {
 	cfg := saml.ConfigFromProfile(p, s.acsURL())
+	applyPriorSAML(&cfg, prior)
 	rv := &samlReview{
 		Destination:           cfg.IdPSSOURL,
 		SPIssuer:              cfg.SPEntityID,
@@ -50,6 +51,42 @@ func (s *Server) buildSAMLReview(p *profile.Profile) (any, error) {
 		rv.RequestXML = "(could not build preview: " + err.Error() + ")"
 	}
 	return rv, nil
+}
+
+// applyPriorSAML overrides a profile-derived SAML config with the parameters a
+// prior attempt used, so "Run again" prefills the review form with those values.
+func applyPriorSAML(cfg *saml.Config, d history.Details) {
+	pu := d.ParamsUsed
+	if pu == nil {
+		return
+	}
+	if v, ok := pu["destination"].(string); ok && v != "" {
+		cfg.IdPSSOURL = v
+	}
+	if v, ok := pu["sp_issuer"].(string); ok && v != "" {
+		cfg.SPEntityID = v
+	}
+	if v, ok := pu["acs"].(string); ok && v != "" {
+		cfg.ACSURL = v
+	}
+	if v, ok := pu["binding"].(string); ok && v != "" {
+		cfg.Binding = v
+	}
+	if v, ok := pu["nameid_format"].(string); ok {
+		cfg.NameIDFormat = v
+	}
+	if v, ok := pu["sign"].(bool); ok {
+		cfg.SignAuthnRequest = v
+	}
+	if v, ok := pu["force_authn"].(bool); ok {
+		cfg.ForceAuthn = v
+	}
+	if v, ok := pu["is_passive"].(bool); ok {
+		cfg.IsPassive = v
+	}
+	if v, ok := pu["requested_authn_context"].(string); ok && v != "" {
+		cfg.RequestedAuthnContext = splitLines(v)
+	}
 }
 
 func (s *Server) startSAML(w http.ResponseWriter, r *http.Request, p *profile.Profile) {
@@ -87,6 +124,8 @@ func (s *Server) startSAML(w http.ResponseWriter, r *http.Request, p *profile.Pr
 			"nameid_format": cfg.NameIDFormat,
 			"force_authn":   cfg.ForceAuthn,
 			"is_passive":    cfg.IsPassive,
+
+			"requested_authn_context": strings.Join(cfg.RequestedAuthnContext, "\n"),
 		},
 		ExpiresAt: time.Now().Add(inflightTTL),
 	}
@@ -189,6 +228,8 @@ func (s *Server) handleSAMLACS(w http.ResponseWriter, r *http.Request) {
 		"force_authn":   rec.Params["force_authn"],
 		"is_passive":    rec.Params["is_passive"],
 		"request_id":    rec.RequestID,
+
+		"requested_authn_context": rec.Params["requested_authn_context"],
 	}
 
 	// SAML has no server-to-server exchanges during login; pass an empty recorder.

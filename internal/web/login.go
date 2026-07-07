@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,6 +36,10 @@ func (s *Server) handleLoginReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// "Run again" links carry ?from=<attemptId> so the review form is prefilled
+	// with the exact parameters and per-session headers that attempt used.
+	prior := s.priorAttempt(r, p)
+
 	data := map[string]any{
 		"Title":       "Start login — " + p.Name,
 		"Profile":     p,
@@ -45,17 +50,20 @@ func (s *Server) handleLoginReview(w http.ResponseWriter, r *http.Request) {
 
 	switch p.Protocol {
 	case profile.OIDC:
-		start, err := oidc.BuildStart(p, s.redirectURI())
-		if err != nil {
-			s.serverError(w, err)
-			return
+		start := oidcStartFromDetails(prior)
+		if start == nil {
+			start, err = oidc.BuildStart(p, s.redirectURI())
+			if err != nil {
+				s.serverError(w, err)
+				return
+			}
 		}
 		data["OIDC"] = start
-		// Blank rows for per-session headers (added on top of the profile's).
+		// Prefill per-session header rows from the prior attempt, if any.
 		data["AllPhases"] = profile.AllHeaderPhases
-		data["SessionHeaderRows"] = buildHeaderRows(&profile.Profile{})
+		data["SessionHeaderRows"] = sessionHeaderRows(prior)
 	case profile.SAML:
-		start, err := s.buildSAMLReview(p)
+		start, err := s.buildSAMLReview(p, prior)
 		if err != nil {
 			s.serverError(w, err)
 			return
@@ -64,6 +72,74 @@ func (s *Server) handleLoginReview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, r, "login_review.html", data)
+}
+
+// priorAttempt loads the attempt referenced by the ?from=<id> query parameter,
+// used to prefill the review form on "Run again". It returns a zero Details
+// (nil ParamsUsed) when there is no usable prior attempt for this profile —
+// missing/invalid id, unknown attempt, different profile, or other protocol.
+func (s *Server) priorAttempt(r *http.Request, p *profile.Profile) history.Details {
+	v := r.URL.Query().Get("from")
+	if v == "" {
+		return history.Details{}
+	}
+	fromID, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return history.Details{}
+	}
+	full, err := s.history.Get(r.Context(), fromID)
+	if err != nil {
+		return history.Details{}
+	}
+	if !full.HasProfile() || full.ProfileIDVal() != p.ID || full.Protocol != string(p.Protocol) {
+		return history.Details{}
+	}
+	return full.Details
+}
+
+// oidcStartFromDetails rebuilds the editable OIDC authorization request from a
+// prior attempt's stored parameters. Returns nil when there is nothing to
+// prefill, so the caller falls back to a freshly generated request.
+func oidcStartFromDetails(d history.Details) *oidc.Start {
+	if d.ParamsUsed == nil {
+		return nil
+	}
+	start := &oidc.Start{}
+	if v, ok := d.ParamsUsed["authorize_url"].(string); ok {
+		start.AuthorizationEndpoint = v
+	}
+	if v, ok := d.ParamsUsed["code_verifier"].(string); ok {
+		start.CodeVerifier = v
+	}
+	if raw, ok := d.ParamsUsed["authorize_params"]; ok && raw != nil {
+		b, err := json.Marshal(raw)
+		if err == nil {
+			var rows []map[string]string
+			if json.Unmarshal(b, &rows) == nil {
+				for _, kv := range rows {
+					start.Params = append(start.Params, oidc.Param{Key: kv["key"], Value: kv["value"]})
+				}
+			}
+		}
+	}
+	if len(start.Params) == 0 {
+		return nil
+	}
+	return start
+}
+
+// sessionHeaderRows builds the indexed per-session header rows for the review
+// form, prefilled from a prior attempt's session headers (plus spare blanks).
+func sessionHeaderRows(d history.Details) []headerRow {
+	var chs []profile.CustomHeader
+	if d.ParamsUsed != nil {
+		if raw, ok := d.ParamsUsed["session_headers"]; ok && raw != nil {
+			if b, err := json.Marshal(raw); err == nil {
+				_ = json.Unmarshal(b, &chs)
+			}
+		}
+	}
+	return buildHeaderRows(&profile.Profile{CustomHeaders: chs})
 }
 
 // handleLoginStart persists in-flight state and redirects to the provider.

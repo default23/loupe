@@ -197,7 +197,7 @@
 
 <div class="actions">
     <a class="btn secondary" href="/history">Back to history</a>
-    {{if .HasProfile}}<a class="btn" href="/login/{{.ProfileIDVal}}">Run again</a>{{end}}
+    {{if .HasProfile}}<a class="btn" href="/login/{{.ProfileIDVal}}?from={{.ID}}">Run again</a>{{end}}
 </div>
 {{end}}
 {{end}}
