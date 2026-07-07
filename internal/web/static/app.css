@@ -573,6 +573,35 @@ textarea.slot {
 }
 .tool-form label:first-child { margin-top: 0; }
 
+/* ---- Certificate parser: inputs on top, full-width readout below ---- */
+.cert-inputs {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1.2rem;
+    align-items: start;
+    margin-top: 1.4rem;
+}
+.certreadout { margin-top: 1.2rem; }
+/* Fixed layout so long values are clipped inside their cell instead of
+   stretching the table past the pane. */
+.certreadout table.kvtable { table-layout: fixed; }
+.certreadout table.kvtable td:first-child { width: 160px; }
+/* Long monospace values: truncate with an ellipsis, reveal in full on hover. */
+code.clip {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+    cursor: help;
+}
+code.clip:hover {
+    overflow: visible;
+    white-space: normal;
+    word-break: break-all;
+}
+
 /* Warn state for validations (paired with the existing ok/fail). */
 ul.checks-list li.warn .mark { color: var(--warn); }
 ul.checks-list li.warn strong { color: #f0cd8a; }
@@ -580,6 +609,7 @@ ul.checks-list li.warn strong { color: #f0cd8a; }
 /* ---- Responsive ---- */
 @media (max-width: 820px) {
     .tool-split { grid-template-columns: 1fr; }
+    .cert-inputs { grid-template-columns: 1fr; }
     .pane.readout { border-left: 1px solid var(--line); }
 }
 @media (max-width: 640px) {

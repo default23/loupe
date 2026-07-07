@@ -5,7 +5,7 @@
     presents. Every field is decoded — subject, SANs, key usage, extensions, and
     fingerprints.</p>
 
-<div class="tool-split">
+<div class="cert-inputs">
     <section class="pane specimen">
         <div class="pane-head"><p class="eyebrow">Certificate (PEM)</p></div>
         <form hx-post="/tools/tls-cert/parse" hx-target="#readout-body" hx-swap="innerHTML"
@@ -15,8 +15,10 @@
             <textarea id="pem" name="pem" class="slot mono" spellcheck="false"
                       placeholder="-----BEGIN CERTIFICATE-----&#10;MIID…&#10;-----END CERTIFICATE-----"></textarea>
         </form>
+    </section>
 
-        <div class="pane-head" style="margin-top:1rem"><p class="eyebrow">Or fetch from a server</p></div>
+    <section class="pane specimen">
+        <div class="pane-head"><p class="eyebrow">Or fetch from a server</p></div>
         <form hx-post="/tools/tls-cert/parse" hx-target="#readout-body" hx-swap="innerHTML"
               hx-trigger="submit">
             <input type="hidden" name="source" value="host">
@@ -30,17 +32,17 @@
                 The chain is not trust-verified — expired or self-signed chains are shown as-is.</p>
         </form>
     </section>
-
-    <section class="pane readout">
-        <div class="pane-head">
-            <p class="eyebrow">Readout</p>
-            <span class="readout-status">parsed</span>
-        </div>
-        <div id="readout-body">
-            <p class="tool-hint">Paste a certificate or fetch a server to inspect it.</p>
-        </div>
-    </section>
 </div>
+
+<section class="pane readout certreadout">
+    <div class="pane-head">
+        <p class="eyebrow">Readout</p>
+        <span class="readout-status">parsed</span>
+    </div>
+    <div id="readout-body">
+        <p class="tool-hint">Paste a certificate or fetch a server to inspect it.</p>
+    </div>
+</section>
 {{end}}
 
 {{define "tlscert_result"}}
@@ -63,14 +65,14 @@
 
     <h3>Subject</h3>
     <table class="kvtable">
-        {{range .SubjectParts}}<tr><td>{{.Field}}</td><td><code>{{.Value}}</code></td></tr>{{end}}
-        <tr><td>Full DN</td><td><code>{{.SubjectDN}}</code></td></tr>
+        {{range .SubjectParts}}<tr><td>{{.Field}}</td><td><code class="clip">{{.Value}}</code></td></tr>{{end}}
+        <tr><td>Full DN</td><td><code class="clip">{{.SubjectDN}}</code></td></tr>
     </table>
 
     <h3>Issuer</h3>
     <table class="kvtable">
-        {{range .IssuerParts}}<tr><td>{{.Field}}</td><td><code>{{.Value}}</code></td></tr>{{end}}
-        <tr><td>Full DN</td><td><code>{{.IssuerDN}}</code></td></tr>
+        {{range .IssuerParts}}<tr><td>{{.Field}}</td><td><code class="clip">{{.Value}}</code></td></tr>{{end}}
+        <tr><td>Full DN</td><td><code class="clip">{{.IssuerDN}}</code></td></tr>
     </table>
 
     <h3>Validity</h3>
@@ -82,16 +84,16 @@
 
     <h3>Key &amp; signature</h3>
     <table class="kvtable">
-        <tr><td>Serial (hex)</td><td><code>{{.SerialHex}}</code></td></tr>
-        <tr><td>Serial (dec)</td><td><code>{{.SerialDec}}</code></td></tr>
+        <tr><td>Serial (hex)</td><td><code class="clip">{{.SerialHex}}</code></td></tr>
+        <tr><td>Serial (dec)</td><td><code class="clip">{{.SerialDec}}</code></td></tr>
         <tr><td>Version</td><td>v{{.Version}}</td></tr>
         <tr><td>Public key</td><td>{{.PublicKeyAlgorithm}}{{if .PublicKeyBits}} ({{.PublicKeyBits}}-bit){{end}}{{if .PublicKeyDetail}} · {{.PublicKeyDetail}}{{end}}</td></tr>
         <tr><td>Signature</td><td>{{.SignatureAlgorithm}}</td></tr>
         {{if .KeyUsage}}<tr><td>Key usage</td><td>{{join .KeyUsage ", "}}</td></tr>{{end}}
         {{if .ExtKeyUsage}}<tr><td>Ext key usage</td><td>{{join .ExtKeyUsage ", "}}</td></tr>{{end}}
         <tr><td>Basic constraints</td><td>CA: {{if .IsCA}}yes{{else}}no{{end}}{{if .HasMaxPathLen}} · max path len: {{.MaxPathLen}}{{end}}</td></tr>
-        {{if .SubjectKeyID}}<tr><td>Subject key ID</td><td><code>{{.SubjectKeyID}}</code></td></tr>{{end}}
-        {{if .AuthorityKeyID}}<tr><td>Authority key ID</td><td><code>{{.AuthorityKeyID}}</code></td></tr>{{end}}
+        {{if .SubjectKeyID}}<tr><td>Subject key ID</td><td><code class="clip">{{.SubjectKeyID}}</code></td></tr>{{end}}
+        {{if .AuthorityKeyID}}<tr><td>Authority key ID</td><td><code class="clip">{{.AuthorityKeyID}}</code></td></tr>{{end}}
     </table>
 
     {{if or .DNSNames .IPAddresses .EmailAddresses .URIs}}
@@ -132,8 +134,8 @@
 
     <h3>Fingerprints</h3>
     <table class="kvtable">
-        <tr><td>SHA-256</td><td><code>{{.SHA256Fingerprint}}</code></td></tr>
-        <tr><td>SHA-1</td><td><code>{{.SHA1Fingerprint}}</code></td></tr>
+        <tr><td>SHA-256</td><td><code class="clip">{{.SHA256Fingerprint}}</code></td></tr>
+        <tr><td>SHA-1</td><td><code class="clip">{{.SHA1Fingerprint}}</code></td></tr>
     </table>
 
     <details>
